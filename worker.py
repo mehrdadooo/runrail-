@@ -5,10 +5,14 @@ import aiohttp
 import shutil
 import uuid
 import random
-import socket
 from pathlib import Path
 from pyrogram import Client
 from pyrogram.errors import FloodWait, AuthKeyDuplicated, AuthKeyInvalid
+
+# 🚨 تخلیه فوری خروجی برای نمایش زنده و ثانیه‌ای لاگ‌ها در Railway 🚨
+def print_log(msg):
+    print(msg, flush=True)
+    sys.stdout.flush()
 
 # ─── تنظیمات اختصاصی شما ───
 API_ID = 39884025
@@ -24,53 +28,79 @@ BOT_SESSIONS = [
     "BAJglPkAnFvYFhSl3hlS4GIGt1SE-9C07UeeF0iteez4skX9hDjV3v_MpG7XN50rodIXGUghdjN_s_ePRYiY2_0d7cOROP1EvEhbcNp1c7FaJzYzRNbC4ejWuqdVF88yRh7Y1_1frOzsrEKlFF8UWq2bl6jeOPcTyl0OZGkosKhuXXIVbnM9h_-X96MLqvRCPlvW9IrBjby-HXHlE_RFAw-68JViTuVNZz6zEFsDWV0M-D5-L8nRfedqEFP0Y1pg_7JZQnCggHKYUJ7lvhCa9-XCo1PJQZjbj9ukDM53B7WoZgpfKGjtnuRfp0kHEuZYrZGtXUHs_N7wmLdrZfeolKQ6RNa1nAAAAAINTZ2uAQ"
 ]
 
-def print_log(msg):
-    """🤖 تخلیه فوری خروجی برای نمایش زنده و ثانیه‌ای لاگ‌ها در Railway"""
-    print(msg, flush=True)
-    sys.stdout.flush()
+async def download_via_cobalt(url, job_dir):
+    """دانلود با کبالت و دور زدن فیلترینگ کبالت با هدرهای مرورگر کروم"""
+    print_log(f"🌟 Starting Cobalt API fallback for: {url}")
+    api_urls = ["https://api.cobalt.tools/api/json", "https://cobalt.q0.pm/api/json", "https://co.wuk.sh/api/json"]
+    
+    headers = {
+        "Accept": "application/json", "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+        "Origin": "https://cobalt.tools", "Referer": "https://cobalt.tools/"
+    }
+    payload = {"url": url, "vQuality": "max"}
 
-async def download_video(url, job_dir):
-    """دانلود سراسری و پرسرعت انواع لینک‌ها از بستر پروکسی ۸۰۸۶ فعال در ریل‌وی"""
-    print_log(f"📥 Starting download: {url}")
+    async with aiohttp.ClientSession() as session:
+        video_url = None
+        for api in api_urls:
+            try:
+                async with session.post(api, headers=headers, json=payload, timeout=10) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        video_url = data.get("url")
+                        if video_url: 
+                            print_log(f"✅ Extracted link from {api}")
+                            break
+            except: continue
+
+        if not video_url: raise Exception("❌ All Cobalt APIs failed.")
+
+        # ذخیره با آدرس مطلق برای حل باگ داکر
+        file_path = f"{job_dir.resolve()}/video.mp4"
+        async with session.get(video_url) as video_resp:
+            if video_resp.status != 200: raise Exception("Download failed.")
+            with open(file_path, 'wb') as f:
+                while True:
+                    chunk = await video_resp.content.read(2 * 1024 * 1024)
+                    if not chunk: break
+                    f.write(chunk)
+        print_log("✅ Successfully downloaded via Cobalt!")
+        return True
+
+async def download_video_via_ytdlp(url, job_dir):
+    """دانلود یوتیوب با استفاده از تونل سایفون روی پورت 8086"""
+    print_log(f"🚜 Running yt-dlp...")
     
     is_youtube = "youtube.com" in url.lower() or "youtu.be" in url.lower()
+    absolute_job_dir = str(job_dir.resolve()) # 🚨 فیکس آدرس‌دهی داکر
     
-    # 🚨 دستور هوشمند و یکپارچه مجهز به پروکسی رسمی کلودفلر ریل‌وی
     cmd = [
-        "yt-dlp",
-        "--rm-cache-dir",
-        "-f", "bv*+ba/b" if is_youtube else "b",       # کیفیت جداگانه برای یوتیوب و تک‌پارت برای اینستاگرام
+        "yt-dlp", "--rm-cache-dir", 
+        "-f", "bv*+ba/b" if is_youtube else "b", 
         "--merge-output-format", "mp4",
-        "--proxy", "socks5h://127.0.0.1:8086",         # 🚨 هدایت ترافیک دانلود از قلب کلودفلر ریل‌وی
+        "--proxy", "socks5h://127.0.0.1:8086",
         "--impersonate", "chrome",
-        "--no-check-certificate",
-        "--force-ipv4",
-        "--retries", "5",
-        "-o", f"{job_dir}/video.%(ext)s"
+        "--no-check-certificate", "--force-ipv4", "--retries", "3",
+        "-o", f"{absolute_job_dir}/video.%(ext)s", url
     ]
     
-    # تنظیمات اختصاصی دور زدن لایه‌های سنگین یوتیوب (فقط در صورت شناسایی لینک یوتیوب)
     if is_youtube:
         cmd.extend([
             "--extractor-args", "youtube:player_client=tv_downgraded,android_vr",
             "--remote-components", "ejs:github"
         ])
         
-    print_log(f"🎬 Running Command: {' '.join(cmd)}")
-    
-    process = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE
-    )
-    
+    process = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     stdout, stderr = await process.communicate()
     
-    if process.returncode != 0:
-        error_msg = stderr.decode('utf-8', errors='ignore').strip()
-        raise Exception(f"yt-dlp failed: {error_msg}")
+    # 🚨 چاپ صریح لاگ‌های دانلود برای دیباگ در ریل‌وی 🚨
+    yt_out = stdout.decode('utf-8', errors='ignore').strip()
+    yt_err = stderr.decode('utf-8', errors='ignore').strip()
+    if yt_out: print_log(f"📝 --- yt-dlp stdout ---\n{yt_out}")
+    if yt_err: print_log(f"⚠️ --- yt-dlp stderr ---\n{yt_err}")
         
-    print_log("✅ Video downloaded successfully!")
+    if process.returncode != 0:
+        raise Exception(f"Exit code {process.returncode}")
     return True
 
 async def main():
@@ -81,30 +111,36 @@ async def main():
             try:
                 headers = {"Authorization": f"Bearer {WORKER_SECRET}"}
                 async with session.get(f"{HF_URL}/poll", headers=headers) as resp:
-                    
                     if resp.status == 200:
                         data = await resp.json()
                         if data.get("status") == "no_job":
                             await asyncio.sleep(2)
                             continue
 
-                        url = data["url"]
-                        chat_id = int(data["chat_id"])
-                        message_id = int(data["message_id"])
-                        status_msg_id = int(data["status_msg_id"])
-
+                        url, chat_id, message_id, status_msg_id = data["url"], int(data["chat_id"]), int(data["message_id"]), int(data["status_msg_id"])
                         job_id = str(uuid.uuid4())[:8]
                         job_dir = Path(f"jobs/{job_id}")
                         job_dir.mkdir(parents=True, exist_ok=True)
-
-                        print_log(f"[{job_id}] 📥 Job Acquired! Processing: {url}")
+                        print_log(f"[{job_id}] 📥 Job Acquired: {url}")
 
                         try:
-                            # اجرای دانلود یکپارچه با محافظ کلودفلر
-                            await download_video(url, job_dir)
+                            # ۱. تلاش برای دانلود با yt-dlp و پروکسی لوکال
+                            download_success = False
+                            try:
+                                await download_video_via_ytdlp(url, job_dir)
+                                download_success = True
+                            except Exception as e:
+                                print_log(f"⚠️ yt-dlp download failed: {e}")
                             
+                            # ۲. اگر به هر دلیلی فایل دانلود نشد و لینک اینستاگرام بود -> برو روی کبالت
+                            if not download_success and not ("youtube.com" in url or "youtu.be" in url):
+                                print_log("🔄 Falling back to Cobalt API...")
+                                await download_via_cobalt(url, job_dir)
+                                download_success = True
+
+                            # چک کردن فیزیکی فایل روی هارد داکر
                             matches = list(job_dir.glob("video.mp4")) or list(job_dir.glob("video.*")) or list(job_dir.glob("*.*"))
-                            if not matches:
+                            if not matches or not download_success:
                                 raise FileNotFoundError("Video file not found on disk!")
                                 
                             file_path = str(matches[0].resolve())
@@ -119,60 +155,29 @@ async def main():
                                         last_percent = percent
                                         print_log(f"[{job_id}] 🚀 Uploading Progress: {percent}%")
 
-                            # آپلود با استخر سشن
+                            # ۳. آپلود با استخر سشن
                             upload_success = False
                             for attempt in range(3):
                                 chosen_session = random.choice(BOT_SESSIONS)
-                                upload_app = Client(
-                                    f"vip_uploader_{job_id}_{attempt}", 
-                                    api_id=API_ID, 
-                                    api_hash=API_HASH, 
-                                    session_string=chosen_session,
-                                    in_memory=True
-                                )
-                                
+                                upload_app = Client(f"railway_{job_id}_{attempt}", api_id=API_ID, api_hash=API_HASH, session_string=chosen_session, in_memory=True)
                                 try:
                                     async with upload_app:
-                                        print_log(f"[{job_id}] 🚀 Attempt {attempt+1}: Uploading to Telegram...")
-                                        await upload_app.send_video(
-                                            chat_id=chat_id,
-                                            video=file_path,
-                                            caption=f"🎬 دانلود سریع توسط **Railway VIP**",
-                                            reply_to_message_id=message_id,
-                                            supports_streaming=True,
-                                            progress=progress_callback
-                                        )
-                                        try:
-                                            await upload_app.delete_messages(chat_id, status_msg_id)
-                                        except Exception:
-                                            pass
-                                            
+                                        print_log(f"[{job_id}] 🚀 Uploading to Telegram...")
+                                        await upload_app.send_video(chat_id=chat_id, video=file_path, caption=f"🎬 دانلود سریع توسط **Railway VIP**", reply_to_message_id=message_id, supports_streaming=True, progress=progress_callback)
+                                        try: await upload_app.delete_messages(chat_id, status_msg_id)
+                                        except: pass
                                     print_log(f"[{job_id}] 🎉 Job Completed!")
                                     upload_success = True
                                     break
+                                except (AuthKeyDuplicated, AuthKeyInvalid): continue
+                                except FloodWait as e: await asyncio.sleep(e.value + 2)
                                     
-                                except (AuthKeyDuplicated, AuthKeyInvalid):
-                                    print_log(f"[{job_id}] ⚠️ Session collision! Switching session...")
-                                    continue
-                                except FloodWait as e:
-                                    print_log(f"[{job_id}] 🛑 Telegram Rate Limit: Must wait {e.value} seconds.")
-                                    await asyncio.sleep(e.value + 2)
-                                    
-                            if not upload_success:
-                                print_log(f"[{job_id}] ❌ Upload failed after all retries.")
+                            if not upload_success: print_log(f"[{job_id}] ❌ Upload failed.")
 
-                        except Exception as e:
-                            print_log(f"[{job_id}] ❌ Error during processing: {e}")
-                            
-                        finally:
-                            shutil.rmtree(job_dir, ignore_errors=True)
-                            print_log(f"[{job_id}] 🧹 Cleanup done.\n")
-
-                    else:
-                        await asyncio.sleep(5)
-                        
-            except Exception as e:
-                await asyncio.sleep(5)
+                        except Exception as e: print_log(f"[{job_id}] ❌ Error during processing: {e}")
+                        finally: shutil.rmtree(job_dir, ignore_errors=True)
+                    else: await asyncio.sleep(5)
+            except Exception: await asyncio.sleep(5)
 
 if __name__ == "__main__":
     asyncio.run(main())
