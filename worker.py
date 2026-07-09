@@ -1,12 +1,21 @@
 import os
+import sys
 import asyncio
 import aiohttp
 import shutil
 import uuid
 import random
+import traceback
 from pathlib import Path
 from pyrogram import Client
 from pyrogram.errors import FloodWait, AuthKeyDuplicated, AuthKeyInvalid
+
+# 🚨 هک سیستمی لینوکس: فورس کردن پایتون برای چاپ لحظه‌ای و درجا در لاگ‌های Railway 🚨
+import builtins
+def print(*args, **kwargs):
+    kwargs['flush'] = True
+    builtins.print(*args, **kwargs)
+    sys.stdout.flush()
 
 # متغیرهایی که از پنل Railway خوانده می‌شوند
 API_ID = int(os.environ.get("API_ID", "39884025"))
@@ -37,16 +46,24 @@ async def download_via_cobalt(url, job_dir):
         video_url = None
         for api in api_urls:
             try:
+                print(f"📡 Testing Cobalt server: {api} ...")
                 async with session.post(api, headers=headers, json=payload, timeout=10) as resp:
                     if resp.status == 200:
                         data = await resp.json()
                         video_url = data.get("url")
-                        if video_url: break
-            except: continue
+                        if video_url: 
+                            print(f"✅ Success with {api}")
+                            break
+                    else:
+                        print(f"⚠️ Server {api} returned status {resp.status}")
+            except Exception as e: 
+                print(f"⚠️ Server {api} failed: {e}")
+                continue
 
-        if not video_url: raise Exception("❌ Cobalt API Failed.")
+        if not video_url: raise Exception("❌ Cobalt API Failed on all servers.")
 
         file_path = f"{job_dir}/video.mp4"
+        print("📥 Downloading raw video file...")
         async with session.get(video_url) as video_resp:
             if video_resp.status != 200: raise Exception("Download failed.")
             with open(file_path, 'wb') as f:
@@ -67,10 +84,11 @@ async def download_youtube(url, job_dir):
         "--no-check-certificate", "--force-ipv4", "--retries", "3",
         "-o", f"{job_dir}/video.%(ext)s", url
     ]
+    print(f"💻 Command: {' '.join(cmd)}")
     process = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     stdout, stderr = await process.communicate()
     if process.returncode != 0:
-        raise Exception(stderr.decode().strip()[:200])
+        raise Exception(stderr.decode().strip()[:500])
     return True
 
 async def main():
@@ -108,22 +126,33 @@ async def main():
                                 upload_app = Client(f"railway_{job_id}_{attempt}", api_id=API_ID, api_hash=API_HASH, session_string=random.choice(BOT_SESSIONS), in_memory=True)
                                 try:
                                     async with upload_app:
-                                        print(f"[{job_id}] 🚀 Uploading...")
+                                        print(f"[{job_id}] 🚀 Uploading to Telegram (Attempt {attempt+1})...")
                                         await upload_app.send_video(chat_id=chat_id, video=file_path, caption=f"🎬 دانلود سریع توسط **Railway VIP**", reply_to_message_id=message_id, supports_streaming=True)
                                         try: await upload_app.delete_messages(chat_id, status_msg_id)
                                         except: pass
-                                    print(f"[{job_id}] 🎉 Completed!")
+                                    print(f"[{job_id}] 🎉 Completed Successfully!")
                                     upload_success = True
                                     break
-                                except (AuthKeyDuplicated, AuthKeyInvalid): continue
-                                except FloodWait as e: await asyncio.sleep(e.value + 2)
+                                except (AuthKeyDuplicated, AuthKeyInvalid): 
+                                    print(f"[{job_id}] ⚠️ Session collision! Retrying...")
+                                    continue
+                                except FloodWait as e: 
+                                    print(f"[{job_id}] 🛑 Telegram FloodWait: {e.value} seconds.")
+                                    await asyncio.sleep(e.value + 2)
                                     
-                            if not upload_success: print(f"[{job_id}] ❌ Upload failed.")
+                            if not upload_success: print(f"[{job_id}] ❌ Upload failed to Telegram.")
 
-                        except Exception as e: print(f"[{job_id}] ❌ Error: {e}")
+                        except Exception as e: print(f"[{job_id}] ❌ Job Error: {e}")
                         finally: shutil.rmtree(job_dir, ignore_errors=True)
                     else: await asyncio.sleep(5)
-            except Exception: await asyncio.sleep(5)
+            except Exception as e: 
+                # print(f"Connection to HF failed: {e}") # کامنت شد تا لاگ شلوغ نشود
+                await asyncio.sleep(5)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except Exception as e:
+        print(f"\n❌ CRITICAL FATAL ERROR IN MAIN LOOP: {e}")
+        traceback.print_exc()
+        sys.exit(1)
