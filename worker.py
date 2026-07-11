@@ -46,20 +46,21 @@ jobs:
           set -euo pipefail
           printf "%s" "$YT_COOKIES" > cookies.txt
 
-      # ─── گام اول: کلاینت اندروید ───
+      # ─── گام اول: کلاینت اندروید (بدون کوکی - پرسرعت و مخفیانه) ───
       - name: Download Video (Ninja Mode - Android)
         id: download_direct
         continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
+
           title=$(yt-dlp --get-title --impersonate chrome --extractor-args "youtube:player_client=android" --remote-components "ejs:github" --no-check-certificate --retries 5 "${{ github.event.client_payload.url }}")
           echo "title=$title" >> "$GITHUB_OUTPUT"
 
-          # 🚨 تزریق فلگ‌های FastStart و تبدیل فرمت عکس 🚨
-          yt-dlp -f "bv*+ba/b" --merge-output-format mp4 --add-metadata --embed-thumbnail --write-thumbnail --convert-thumbnails jpg --postprocessor-args "ffmpeg:-movflags +faststart" --impersonate chrome --extractor-args "youtube:player_client=android" --remote-components "ejs:github" --no-check-certificate --retries 5 --fragment-retries infinite --concurrent-fragments 3 -o "video.%(ext)s" "${{ github.event.client_payload.url }}"
+          # 🚨 فلگ‌های کندکننده حذف شدند. فقط فایل‌های json و jpg استخراج می‌شوند و فست‌استارت اعمال می‌شود 🚨
+          yt-dlp -f "bv*+ba/b" --merge-output-format mp4 --write-info-json --write-thumbnail --convert-thumbnails jpg --postprocessor-args "ffmpeg:-movflags +faststart" --impersonate chrome --extractor-args "youtube:player_client=android" --remote-components "ejs:github" --no-check-certificate --retries 5 --fragment-retries infinite --concurrent-fragments 3 -o "video.%(ext)s" "${{ github.event.client_payload.url }}"
 
-      # ─── گام دوم: تونل WARP ───
+      # ─── گام دوم: روشن کردن تونل WARP ───
       - name: Install & Run Cloudflare WARP (Fallback Mode)
         if: steps.download_direct.outcome == 'failure'
         uses: fscarmen/warp-on-actions@v1.1
@@ -73,11 +74,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
           title=$(yt-dlp --get-title --cookies cookies.txt --impersonate chrome --extractor-args "youtube:player_client=default" --remote-components "ejs:github" --no-check-certificate --force-ipv4 --retries 5 "${{ github.event.client_payload.url }}")
           echo "title=$title" >> "$GITHUB_OUTPUT"
 
-          # 🚨 تزریق فلگ‌های FastStart و تبدیل فرمت عکس 🚨
-          yt-dlp -f "bv*+ba/b" --merge-output-format mp4 --add-metadata --embed-thumbnail --write-thumbnail --convert-thumbnails jpg --postprocessor-args "ffmpeg:-movflags +faststart" --cookies cookies.txt --impersonate chrome --extractor-args "youtube:player_client=default" --remote-components "ejs:github" --no-check-certificate --force-ipv4 --retries 10 --fragment-retries infinite -o "video.%(ext)s" "${{ github.event.client_payload.url }}"
+          # 🚨 فلگ‌های کندکننده حذف شدند. فقط فایل‌های json و jpg استخراج می‌شوند و فست‌استارت اعمال می‌شود 🚨
+          yt-dlp -f "bv*+ba/b" --merge-output-format mp4 --write-info-json --write-thumbnail --convert-thumbnails jpg --postprocessor-args "ffmpeg:-movflags +faststart" --cookies cookies.txt --impersonate chrome --extractor-args "youtube:player_client=default" --remote-components "ejs:github" --no-check-certificate --force-ipv4 --retries 10 --fragment-retries infinite -o "video.%(ext)s" "${{ github.event.client_payload.url }}"
 
       # ─── گام چهارم: دریافت تایتل ───
       - name: Get Final Title
