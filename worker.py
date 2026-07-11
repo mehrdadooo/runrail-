@@ -1,167 +1,117 @@
-import os
-import sys
-import asyncio
-import aiohttp
-import shutil
-import uuid
-import random
-from pathlib import Path
-from pyrogram import Client
-from pyrogram.errors import FloodWait, AuthKeyDuplicated, AuthKeyInvalid
+name: YouTube Downloader Worker
 
-def print_log(msg):
-    print(msg, flush=True)
-    sys.stdout.flush()
+on:
+  repository_dispatch:
+    types: [download_video]
 
-API_ID = 39884025
-API_HASH = "24ce21160fcabd7e7c0de00a77b45ef3"
-HF_URL = "https://downloads89oouu-downloader.hf.space" 
-WORKER_SECRET = "ali_vip_worker_2026"
+jobs:
+  download-and-upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
 
-BOT_SESSIONS = [
-    "BAJglPkAO0RCs_NW3uELJV95CRa17odKleHTrosLpwhRpmfX3N1K7SqQobP1kJvc6czR6E1z5j9TChl_X5_hHlAtx5RZH-xdFiOfJ_CrTMrTRKY2wzpe9dC2E9CitkBqwgZQDyHbiLZC-mrJPoXgDZ2tGeNwMMbWd3kHal3me4N8HloJcvwbR93nopWSZaO1VE9OGol8iczRSPovbqMcexgkquu7yb8EO2U6aeHZOqiExD8Vdibnj8W4QUQLA60bdhNhZGSC4EmdKXKCq32DfZHFtNNxC3RMmh3h1xJdS6Jf4W9IJaR32E5mS8pM-COP9N9pCoLWlw-2XjQiSu5KM9AQjGcs5wAAAAINTZ2uAQ",
-    "BAJglPkAEIHq7qQmQFqUMINW5U6OolhKB8sxXd5mn0pLpwl6mB5fRnvM8UFmd2wf-7N0oDZ0-Rms2QlSr9JMkRoXAAGxKTp0tj0kK_mUobjFlOtS8hctWZgSwNjcsEDXprLU4f7CMQLvRskRzpPkShd1TxsEuzjtjg2sq9_Ed1hBQan1-BFBdAJ2wVNGSfg6zOAUBgV1XUU1_SAl7LywJJQUmSeQEB8dBX_-tmUqJVzpJI6iorwqPxYu8n5k2bPnXdtRB-vbZf-Oi2Cv-1wl-cvG_0vTVPcVUnTiIJjigDpXRz_Eu0lmVIiRhSNtxJvtSj_4u1z-Ze9qnQOCfTNQ3dRQQHYO1wAAAAINTZ2uAQ",
-    "BAJglPkAq5Ab9cqjvp2qvWWxpgmw7wOq2W6wlOC6EUCD9QOu5mAtsAyr7CaY9eOTUCpjB1yuYvE9UyQy6EpZdh-AupsQ6wwQPGjxe6b6wkv7gVm8z0vdO5f54I_dh8erfAY1Lz-186zlCumDcV63EZwm2MO27qKdzbjOocILR4SKECgrvxk1bEqfLHlp5D8nFyTBZeAko4iPWhh8O6d9WMdLQDodXMG-dJCNwQzqE6Vyui1BRNxFIXKoz1XGnZ6iPPuf3eKJH-ayZ3FHJJUei0kYO4MKl_gy3Uv1WFzvTEuvTZtbjyKFKMSp4YH39_OdTdUwXbHca-lQhGwukSztM10quL9_xAAAAAINTZ2uAQ",
-    "BAJglPkAag83pxlJ7YpaNRtvcskvrUSiHrWl0HfkNboMFQuljSaFf6rieC84VjbF5aq9Pxrqrplls6jlfm7f4HC9D7JWa7bKqH9WjSplofQTsSbRYmkvQbUk2lmC7obeze9Unblo0VFc9kXXYG5No0hojvU4DCWTH3ZsY8uveLe8hVTSvlHCQiPcU0cJfnTZT9E2yK__EnlPojvEyavyi1h0pFzGWAybMlegSoHnLcX9VGU08qiRgkKOYdF3i5CV3heSijJiFlwI35wu-XYnqKm60zK2lMTJr2lfid6ssTcdy90brCa9C1BzAcnSGPQMy-GaoZo0ESsHEgGR4R7Z9smYtDFSTgAAAAINTZ2uAQ",
-    "BAJglPkAnFvYFhSl3hlS4GIGt1SE-9C07UeeF0iteez4skX9hDjV3v_MpG7XN50rodIXGUghdjN_s_ePRYiY2_0d7cOROP1EvEhbcNp1c7FaJzYzRNbC4ejWuqdVF88yRh7Y1_1frOzsrEKlFF8UWq2bl6jeOPcTyl0OZGkosKhuXXIVbnM9h_-X96MLqvRCPlvW9IrBjby-HXHlE_RFAw-68JViTuVNZz6zEFsDWV0M-D5-L8nRfedqEFP0Y1pg_7JZQnCggHKYUJ7lvhCa9-XCo1PJQZjbj9ukDM53B7WoZgpfKGjtnuRfp0kHEuZYrZGtXUHs_N7wmLdrZfeolKQ6RNa1nAAAAAINTZ2uAQ"
-]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-async def download_via_cobalt(url, job_dir):
-    print_log(f"🌟 Starting Cobalt API fallback for: {url}")
-    api_urls = ["https://api.cobalt.tools/api/json", "https://cobalt.q0.pm/api/json", "https://api.cobalt.tools/"]
-    headers = {
-        "Accept": "application/json", "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
-    }
-    payload = {"url": url, "videoQuality": "max"}
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: requirements.txt
 
-    async with aiohttp.ClientSession() as session:
-        video_url = None
-        for api in api_urls:
-            try:
-                async with session.post(api, headers=headers, json=payload, timeout=15) as resp:
-                    if resp.status in [200, 202]:
-                        data = await resp.json()
-                        video_url = data.get("url")
-                        if video_url: break
-            except: continue
+      - name: Install Deno & FFmpeg
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            sudo apt-get install -y --no-install-recommends ffmpeg
+          fi
+          curl -fsSL https://deno.land/x/install/install.sh | sh
+          echo "$HOME/.deno/bin" >> "$GITHUB_PATH"
 
-        if not video_url: raise Exception("❌ All Cobalt APIs failed.")
+      - name: Install Python Dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-        file_path = f"{job_dir.resolve()}/video.mp4"
-        async with session.get(video_url) as video_resp:
-            if video_resp.status != 200: raise Exception("Download failed.")
-            with open(file_path, 'wb') as f:
-                while True:
-                    chunk = await video_resp.content.read(2 * 1024 * 1024)
-                    if not chunk: break
-                    f.write(chunk)
-        print_log("✅ Successfully downloaded via Cobalt!")
-        return True
+      - name: Setup YouTube Cookies
+        env:
+          YT_COOKIES: ${{ secrets.YT_COOKIES }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf "%s" "$YT_COOKIES" > cookies.txt
 
-async def download_video_via_ytdlp(url, job_dir):
-    print_log(f"🚜 Running yt-dlp...")
-    is_youtube = "youtube.com" in url.lower() or "youtu.be" in url.lower()
-    absolute_job_dir = str(job_dir.resolve()) 
-    
-    cmd = [
-        "yt-dlp", "--rm-cache-dir", 
-        "-f", "bv*+ba/b" if is_youtube else "b", 
-        "--merge-output-format", "mp4",
-        # 🚨 این دو خط اضافه شد: تزریق کاور و متادیتا به فایل برای نمایش زیبای تلگرام 🚨
-        "--embed-thumbnail",
-        "--embed-metadata",
-        "--impersonate", "chrome",
-        "--no-check-certificate", "--force-ipv4", "--retries", "5",
-        "--fragment-retries", "infinite",
-        "-o", f"{absolute_job_dir}/video.%(ext)s", url
-    ]
-    
-    if is_youtube:
-        cmd.extend(["--extractor-args", "youtube:player_client=android", "--remote-components", "ejs:github"])
-        
-    process = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-    stdout, stderr = await process.communicate()
-    
-    if process.returncode != 0:
-        raise Exception(f"yt-dlp Exit code {process.returncode}")
-    return True
+      # ─── گام اول: کلاینت اندروید ───
+      - name: Download Video (Ninja Mode - Android)
+        id: download_direct
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          title=$(yt-dlp --get-title --impersonate chrome --extractor-args "youtube:player_client=android" --remote-components "ejs:github" --no-check-certificate --retries 5 "${{ github.event.client_payload.url }}")
+          echo "title=$title" >> "$GITHUB_OUTPUT"
 
-async def main():
-    print_log("✅ Railway Worker Ready! Polling Hugging Face for jobs...\n")
+          # 🚨 تزریق فلگ‌های FastStart و تبدیل فرمت عکس 🚨
+          yt-dlp -f "bv*+ba/b" --merge-output-format mp4 --add-metadata --embed-thumbnail --write-thumbnail --convert-thumbnails jpg --postprocessor-args "ffmpeg:-movflags +faststart" --impersonate chrome --extractor-args "youtube:player_client=android" --remote-components "ejs:github" --no-check-certificate --retries 5 --fragment-retries infinite --concurrent-fragments 3 -o "video.%(ext)s" "${{ github.event.client_payload.url }}"
 
-    async with aiohttp.ClientSession() as session:
-        while True:
-            try:
-                headers = {"Authorization": f"Bearer {WORKER_SECRET}"}
-                async with session.get(f"{HF_URL}/poll", headers=headers) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        if data.get("status") == "no_job":
-                            await asyncio.sleep(2)
-                            continue
+      # ─── گام دوم: تونل WARP ───
+      - name: Install & Run Cloudflare WARP (Fallback Mode)
+        if: steps.download_direct.outcome == 'failure'
+        uses: fscarmen/warp-on-actions@v1.1
+        with:
+          stack: dual
 
-                        url, chat_id, message_id, status_msg_id = data["url"], int(data["chat_id"]), int(data["message_id"]), int(data["status_msg_id"])
-                        job_id = str(uuid.uuid4())[:8]
-                        job_dir = Path(f"jobs/{job_id}")
-                        job_dir.mkdir(parents=True, exist_ok=True)
-                        print_log(f"[{job_id}] 📥 Job Acquired: {url}")
+      # ─── گام سوم: دانلود با WARP + کوکی ───
+      - name: Download Video (via WARP Fallback)
+        id: download_warp
+        if: steps.download_direct.outcome == 'failure'
+        shell: bash
+        run: |
+          set -euo pipefail
+          title=$(yt-dlp --get-title --cookies cookies.txt --impersonate chrome --extractor-args "youtube:player_client=default" --remote-components "ejs:github" --no-check-certificate --force-ipv4 --retries 5 "${{ github.event.client_payload.url }}")
+          echo "title=$title" >> "$GITHUB_OUTPUT"
 
-                        try:
-                            download_success = False
-                            try:
-                                await download_video_via_ytdlp(url, job_dir)
-                                download_success = True
-                            except Exception as e:
-                                print_log(f"⚠️ yt-dlp download failed: {e}")
-                            
-                            if not download_success and not ("youtube.com" in url or "youtu.be" in url):
-                                print_log("🔄 Falling back to Cobalt API...")
-                                await download_via_cobalt(url, job_dir)
-                                download_success = True
+          # 🚨 تزریق فلگ‌های FastStart و تبدیل فرمت عکس 🚨
+          yt-dlp -f "bv*+ba/b" --merge-output-format mp4 --add-metadata --embed-thumbnail --write-thumbnail --convert-thumbnails jpg --postprocessor-args "ffmpeg:-movflags +faststart" --cookies cookies.txt --impersonate chrome --extractor-args "youtube:player_client=default" --remote-components "ejs:github" --no-check-certificate --force-ipv4 --retries 10 --fragment-retries infinite -o "video.%(ext)s" "${{ github.event.client_payload.url }}"
 
-                            matches = list(job_dir.glob("video.mp4")) or list(job_dir.glob("video.*")) or list(job_dir.glob("*.*"))
-                            if not matches or not download_success: raise FileNotFoundError("Video file not found on disk!")
-                            file_path = str(matches[0].resolve())
+      # ─── گام چهارم: دریافت تایتل ───
+      - name: Get Final Title
+        id: final_title
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.download_direct.outcome }}" = "success" ]; then
+            echo "val=${{ steps.download_direct.outputs.title }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "val=${{ steps.download_warp.outputs.title }}" >> "$GITHUB_OUTPUT"
+          fi
 
-                            last_percent = -1
-                            async def progress_callback(current, total):
-                                nonlocal last_percent
-                                if total > 0:
-                                    percent = int((current * 100) / total)
-                                    if percent % 10 == 0 and percent != last_percent:
-                                        last_percent = percent
-                                        print_log(f"[{job_id}] 🚀 Uploading Progress: {percent}%")
+      # ─── خاموش کردن پروکسی قبل از ارتباط با تلگرام ───
+      - name: Restore Network (Disable WARP)
+        if: always()
+        shell: bash
+        run: |
+          sudo warp-cli disconnect || true
+          sudo systemctl stop warp-svc || true
 
-                            upload_success = False
-                            for attempt in range(3):
-                                chosen_session = random.choice(BOT_SESSIONS)
-                                upload_app = Client(f"railway_{job_id}_{attempt}", api_id=API_ID, api_hash=API_HASH, session_string=chosen_session, in_memory=True)
-                                try:
-                                    async with upload_app:
-                                        print_log(f"[{job_id}] 🚀 Attempt {attempt+1}: Uploading to Telegram...")
-                                        await upload_app.send_video(
-                                            chat_id=chat_id, 
-                                            video=file_path, 
-                                            caption=f"🎬 **دانلود موفق**\n⚡ توسط سرور پرسرعت", 
-                                            reply_to_message_id=message_id, 
-                                            supports_streaming=True, 
-                                            progress=progress_callback
-                                        )
-                                        try: await upload_app.delete_messages(chat_id, status_msg_id)
-                                        except: pass
-                                    print_log(f"[{job_id}] 🎉 Job Completed!")
-                                    upload_success = True
-                                    break
-                                except (AuthKeyDuplicated, AuthKeyInvalid): continue
-                                except FloodWait as e: await asyncio.sleep(e.value + 2)
-                                    
-                            if not upload_success: print_log(f"[{job_id}] ❌ Upload failed after all retries.")
-
-                        except Exception as e: print_log(f"[{job_id}] ❌ Error during processing: {e}")
-                        finally: shutil.rmtree(job_dir, ignore_errors=True)
-                    else: await asyncio.sleep(5)
-            except Exception: await asyncio.sleep(5)
-
-if __name__ == "__main__":
-    asyncio.run(main())
+      # ─── گام پنجم: آپلود به تلگرام ───
+      - name: Upload Video to Telegram
+        env:
+          API_ID: ${{ secrets.API_ID }}
+          API_HASH: ${{ secrets.API_HASH }}
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          BOT_SESSIONS: ${{ secrets.BOT_SESSIONS }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python upload.py \
+            "${{ github.event.client_payload.chat_id }}" \
+            "${{ github.event.client_payload.message_id }}" \
+            "${{ github.event.client_payload.status_msg_id }}" \
+            "${{ steps.final_title.outputs.val }}"
