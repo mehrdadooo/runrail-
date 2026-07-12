@@ -1,22 +1,4 @@
-import os
-import sys
-import asyncio
-import aiohttp
-import shutil
-import uuid
-import random
-import json
-import shlex
-from pathlib import Path
-from typing import Optional
 
-from pyrogram import Client
-from pyrogram.errors import FloodWait, AuthKeyDuplicated, AuthKeyInvalid
-
-
-def print_log(msg: str) -> None:
-    print(msg, flush=True)
-    sys.stdout.flush()
 
 
 # ─── Configuration ───
