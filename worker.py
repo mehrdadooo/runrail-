@@ -16,7 +16,7 @@ def print_log(msg):
 
 API_ID = int(os.environ.get("API_ID", "39884025"))
 API_HASH = os.environ.get("API_HASH", "24ce21160fcabd7e7c0de00a77b45ef3")
-HF_URL = os.environ.get("HF_URL", "https://downloads89oouu-downloader.hf.space") 
+HF_URL = "https://environ.get("HF_URL", "https://downloads89oouu-downloader.hf.space") 
 WORKER_SECRET = os.environ.get("WORKER_SECRET", "ali_vip_worker_2026")
 
 BOT_SESSIONS = [
@@ -28,16 +28,17 @@ BOT_SESSIONS = [
 ]
 
 async def download_via_cobalt(url, job_dir, quality="max"):
-    """دانلود فوق‌سریع اینستاگرام/تیک‌تاک از Cobalt بدون درگیری با پروکسی"""
+    """دانلود با کبالت (سریع‌ترین راه برای اینستاگرام، تیک‌تاک و یوتیوب‌های بن‌شده)"""
     print_log(f"🌟 Starting Cobalt API fallback for: {url} | Quality: {quality}")
     api_urls = ["https://api.cobalt.tools/api/json", "https://cobalt.q0.pm/api/json", "https://api.cobalt.tools/"]
     headers = {
         "Accept": "application/json", "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
     }
     
     payload = {"url": url, "vQuality": quality if quality != "audio" else "max"}
-    if quality == "audio": payload["isAudioOnly"] = True
+    if quality == "audio":
+        payload["isAudioOnly"] = True
 
     async with aiohttp.ClientSession() as session:
         video_url = None
@@ -55,7 +56,7 @@ async def download_via_cobalt(url, job_dir, quality="max"):
         ext = "mp3" if quality == "audio" else "mp4"
         file_path = f"{job_dir.resolve()}/video.{ext}"
         async with session.get(video_url) as video_resp:
-            if video_resp.status != 200: raise Exception("Download failed.")
+            if video_resp.status != 200: raise Exception("Download failed from Cobalt URL.")
             with open(file_path, 'wb') as f:
                 while True:
                     chunk = await video_resp.content.read(2 * 1024 * 1024)
@@ -65,7 +66,7 @@ async def download_via_cobalt(url, job_dir, quality="max"):
         return True
 
 async def download_video_via_ytdlp(url, job_dir, quality="max"):
-    """دانلود یوتیوب با منطق FastStart و پروکسی زنده Railway"""
+    """دانلود تمیز با yt-dlp بدون پروکسی و بدون کندی"""
     print_log(f"🚜 Running yt-dlp... Quality requested: {quality}")
 
     is_youtube = "youtube.com" in url.lower() or "youtu.be" in url.lower()
@@ -88,11 +89,11 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
         format_str = "bv*+ba/b"
         sort_args = []
 
+    # دستورات پایه بدون هیچ پروکسی و --rm-cache-dir
     cmd = [
         "yt-dlp",
         "-f", format_str,
         *sort_args,
-        "--rm-cache-dir",
         "--impersonate", "chrome",
         "--no-check-certificate",
         "--force-ipv4",
@@ -102,7 +103,7 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
         "-o", f"{absolute_job_dir}/video.%(ext)s"
     ]
 
-    # 🚨 فقط استخراج کاور و FastStart (نهایت سرعت) 🚨
+    # فقط تولید فایل‌های کم‌حجم تامنیل و json برای تلگرام + فست استارت
     if quality != "audio":
         cmd.extend([
             "--merge-output-format", "mp4",
@@ -114,30 +115,24 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
     else:
         cmd.extend(["--extract-audio", "--audio-format", "mp3"])
 
-    # 🚨 استفاده از پروکسی سایفون 8086 فقط برای یوتیوب 🚨
     if is_youtube:
-        cmd.extend([
-            "--proxy", "socks5h://127.0.0.1:8086", 
-            "--extractor-args", "youtube:player_client=android",
-            "--remote-components", "ejs:github"
-        ])
+        # استفاده از کلاینت اندروید برای فرار از 403 (بدون پروکسی)
+        cmd.extend(["--extractor-args", "youtube:player_client=android", "--remote-components", "ejs:github"])
 
     cmd.append(url)
+    
     print_log(f"Executing: {' '.join(cmd)}")
-
-    process = await asyncio.create_subprocess_exec(
-        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-    )
+        
+    process = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     stdout, stderr = await process.communicate()
-
-    yt_out = stdout.decode("utf-8", errors="ignore").strip()
-    yt_err = stderr.decode("utf-8", errors="ignore").strip()
+    
+    yt_out = stdout.decode('utf-8', errors='ignore').strip()
+    yt_err = stderr.decode('utf-8', errors='ignore').strip()
     if yt_out: print_log(f"📝 --- yt-dlp stdout ---\n{yt_out}")
     if yt_err: print_log(f"⚠️ --- yt-dlp stderr ---\n{yt_err}")
-
+        
     if process.returncode != 0:
         raise Exception(f"yt-dlp Exit code {process.returncode}")
-
     return True
 
 async def main():
@@ -164,28 +159,30 @@ async def main():
 
                         try:
                             download_success = False
+                            
+                            # ۱. تلاش مستقیم با yt-dlp
                             try:
                                 await download_video_via_ytdlp(url, job_dir, quality)
                                 download_success = True
                             except Exception as e:
                                 print_log(f"⚠️ yt-dlp download failed: {e}")
                             
-                            if not download_success and not ("youtube.com" in url or "youtu.be" in url):
+                            # ۲. در صورت شکست، Cobalt فوراً وارد عمل می‌شود
+                            if not download_success:
                                 print_log("🔄 Falling back to Cobalt API...")
                                 await download_via_cobalt(url, job_dir, quality)
                                 download_success = True
 
                             matches = list(job_dir.glob("video.mp4")) or list(job_dir.glob("video.mp3")) or [m for m in job_dir.glob("video.*") if m.suffix.lower() not in ['.jpg', '.json']]
-                            if not matches or not download_success: 
-                                raise FileNotFoundError("Video/Audio file not found on disk!")
+                            if not matches or not download_success: raise FileNotFoundError("Video/Audio file not found on disk!")
                             file_path = str(matches[0].resolve())
 
-                            # 🚨 پیدا کردن عکس کاور 🚨
+                            # پیدا کردن عکس کاور
                             thumb_path = None
                             thumb_matches = list(job_dir.glob("*.jpg"))
                             if thumb_matches: thumb_path = str(thumb_matches[0].resolve())
 
-                            # 🚨 استخراج متادیتا 🚨
+                            # خواندن متادیتا از JSON
                             width, height, duration = 0, 0, 0
                             info_matches = list(job_dir.glob("*.info.json"))
                             if info_matches:
