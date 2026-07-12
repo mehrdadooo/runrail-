@@ -14,10 +14,10 @@ def print_log(msg):
     print(msg, flush=True)
     sys.stdout.flush()
 
-API_ID = int(os.environ.get("API_ID", "39884025"))
-API_HASH = os.environ.get("API_HASH", "24ce21160fcabd7e7c0de00a77b45ef3")
-HF_URL = os.environ.get("HF_URL", "https://downloads89oouu-downloader.hf.space") 
-WORKER_SECRET = os.environ.get("WORKER_SECRET", "ali_vip_worker_2026")
+API_ID = 39884025
+API_HASH = "24ce21160fcabd7e7c0de00a77b45ef3"
+HF_URL = "https://downloads89oouu-downloader.hf.space" 
+WORKER_SECRET = "ali_vip_worker_2026"
 
 BOT_SESSIONS = [
     "BAJglPkAO0RCs_NW3uELJV95CRa17odKleHTrosLpwhRpmfX3N1K7SqQobP1kJvc6czR6E1z5j9TChl_X5_hHlAtx5RZH-xdFiOfJ_CrTMrTRKY2wzpe9dC2E9CitkBqwgZQDyHbiLZC-mrJPoXgDZ2tGeNwMMbWd3kHal3me4N8HloJcvwbR93nopWSZaO1VE9OGol8iczRSPovbqMcexgkquu7yb8EO2U6aeHZOqiExD8Vdibnj8W4QUQLA60bdhNhZGSC4EmdKXKCq32DfZHFtNNxC3RMmh3h1xJdS6Jf4W9IJaR32E5mS8pM-COP9N9pCoLWlw-2XjQiSu5KM9AQjGcs5wAAAAINTZ2uAQ",
@@ -28,6 +28,7 @@ BOT_SESSIONS = [
 ]
 
 async def download_via_cobalt(url, job_dir, quality="max"):
+    """دانلود با کبالت به همراه اعمال کیفیت درخواستی کاربر"""
     print_log(f"🌟 Starting Cobalt API fallback for: {url} | Quality: {quality}")
     api_urls = ["https://api.cobalt.tools/api/json", "https://cobalt.q0.pm/api/json", "https://api.cobalt.tools/"]
     headers = {
@@ -35,6 +36,7 @@ async def download_via_cobalt(url, job_dir, quality="max"):
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
     }
     
+    # 🚨 اعمال کیفیت روی API کبالت 🚨
     payload = {"url": url, "vQuality": quality if quality != "audio" else "max"}
     if quality == "audio":
         payload["isAudioOnly"] = True
@@ -65,10 +67,12 @@ async def download_via_cobalt(url, job_dir, quality="max"):
         return True
 
 async def download_video_via_ytdlp(url, job_dir, quality="max"):
+    """دانلود پرسرعت یوتیوب با اعمال کیفیت و استخراج متادیتا در کسری از ثانیه"""
     print_log(f"🚜 Running yt-dlp... Quality requested: {quality}")
     is_youtube = "youtube.com" in url.lower() or "youtu.be" in url.lower()
     absolute_job_dir = str(job_dir.resolve()) 
     
+    # 🚨 سیستم انتخاب کیفیت 🚨
     format_str = "bv*+ba/b" if is_youtube else "b"
     if quality == "1080": format_str = "bv*[height<=1080]+ba/b"
     elif quality == "720": format_str = "bv*[height<=720]+ba/b"
@@ -78,13 +82,11 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
     cmd = [
         "yt-dlp", "--rm-cache-dir", 
         "-f", format_str, 
+        
+        # 🚨 فست‌استارت، استخراج کاور و JSON با نهایت سرعت (بدون Embed کردن کندکننده) 🚨
         "--write-info-json",
         "--write-thumbnail",
         "--convert-thumbnails", "jpg",
-        "--impersonate", "chrome",
-        "--no-check-certificate", "--force-ipv4", "--retries", "5",
-        "--fragment-retries", "infinite",
-        "-o", f"{absolute_job_dir}/video.%(ext)s"
     ]
     
     if quality == "audio":
@@ -92,26 +94,19 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
     else:
         cmd.extend(["--merge-output-format", "mp4", "--postprocessor-args", "ffmpeg:-movflags +faststart"])
 
-    if is_youtube:
-        # 🚨 اتصال به پروکسی سایفون در Railway و کلاینت اندروید (فوق‌سریع و ایمن) 🚨
-        cmd.extend([
-            "--proxy", "socks5h://127.0.0.1:8086", 
-            "--extractor-args", "youtube:player_client=android", 
-            "--remote-components", "ejs:github"
-        ])
-        
-    cmd.append(url) # 🚨 باگ برطرف شد: لینک یوتیوب همیشه باید آخرین پارامتر باشد 🚨
+    cmd.extend([
+        "--impersonate", "chrome",
+        "--no-check-certificate", "--force-ipv4", "--retries", "5",
+        "--fragment-retries", "infinite",
+        "-o", f"{absolute_job_dir}/video.%(ext)s", url
+    ])
     
-    print_log(f"Executing: {' '.join(cmd)}")
+    if is_youtube:
+        cmd.extend(["--extractor-args", "youtube:player_client=android", "--remote-components", "ejs:github"])
         
     process = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     stdout, stderr = await process.communicate()
     
-    yt_out = stdout.decode('utf-8', errors='ignore').strip()
-    yt_err = stderr.decode('utf-8', errors='ignore').strip()
-    if yt_out: print_log(f"📝 --- yt-dlp stdout ---\n{yt_out}")
-    if yt_err: print_log(f"⚠️ --- yt-dlp stderr ---\n{yt_err}")
-        
     if process.returncode != 0:
         raise Exception(f"yt-dlp Exit code {process.returncode}")
     return True
@@ -131,7 +126,7 @@ async def main():
                             continue
 
                         url, chat_id, message_id, status_msg_id = data["url"], int(data["chat_id"]), int(data["message_id"]), int(data["status_msg_id"])
-                        quality = data.get("quality", "max") 
+                        quality = data.get("quality", "max") # 🚨 خواندن کیفیت درخواستی
                         
                         job_id = str(uuid.uuid4())[:8]
                         job_dir = Path(f"jobs/{job_id}")
@@ -151,14 +146,17 @@ async def main():
                                 await download_via_cobalt(url, job_dir, quality)
                                 download_success = True
 
+                            # پیدا کردن فایل مدیا
                             matches = list(job_dir.glob("video.mp4")) or list(job_dir.glob("video.mp3")) or [m for m in job_dir.glob("video.*") if m.suffix.lower() not in ['.jpg', '.json']]
                             if not matches or not download_success: raise FileNotFoundError("Video/Audio file not found on disk!")
                             file_path = str(matches[0].resolve())
 
+                            # 🚨 پیدا کردن عکس کاور (Thumbnail)
                             thumb_path = None
                             thumb_matches = list(job_dir.glob("*.jpg"))
                             if thumb_matches: thumb_path = str(thumb_matches[0].resolve())
 
+                            # 🚨 خواندن متادیتا از JSON با سرعت نور برای نمایش افقی و بی‌نقص در تلگرام 🚨
                             width, height, duration = 0, 0, 0
                             info_matches = list(job_dir.glob("*.info.json"))
                             if info_matches:
@@ -177,10 +175,11 @@ async def main():
                                         last_percent = percent
                                         print_log(f"[{job_id}] 🚀 Uploading Progress: {percent}%")
 
+                            # 🚨 ساخت پکیج آپلود با تمام متادیتاها 🚨
                             is_audio = quality == "audio"
                             upload_kwargs = {
                                 "chat_id": chat_id, 
-                                "caption": f"🎬 **دانلود موفق**\n⚡ کیفیت: {quality}", 
+                                "caption": f"🎬 **دانلود موفق**\n⚡ توسط سرور پرسرعت", 
                                 "reply_to_message_id": message_id, 
                                 "progress": progress_callback
                             }
@@ -205,8 +204,10 @@ async def main():
                                     async with upload_app:
                                         print_log(f"[{job_id}] 🚀 Attempt {attempt+1}: Uploading to Telegram...")
                                         
-                                        if is_audio: await upload_app.send_audio(**upload_kwargs)
-                                        else: await upload_app.send_video(**upload_kwargs)
+                                        if is_audio:
+                                            await upload_app.send_audio(**upload_kwargs)
+                                        else:
+                                            await upload_app.send_video(**upload_kwargs)
                                             
                                         try: await upload_app.delete_messages(chat_id, status_msg_id)
                                         except: pass
