@@ -35,8 +35,9 @@ async def download_via_cobalt(url, job_dir, quality="max"):
     api_urls = ["https://api.cobalt.tools/api/json", "https://cobalt.q0.pm/api/json", "https://api.cobalt.tools/"]
     headers = {
         "Accept": "application/json", "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
     }
+    
     payload = {"url": url, "vQuality": quality if quality != "audio" else "max"}
     if quality == "audio":
         payload["isAudioOnly"] = True
@@ -67,13 +68,14 @@ async def download_via_cobalt(url, job_dir, quality="max"):
         return True
 
 async def download_video_via_ytdlp(url, job_dir, quality="max"):
-    """دانلود پرسرعت یوتیوب بدون هیچ پروکسی و با لود خودکار کوکی‌ها از ریل‌وی"""
+    """دانلود تمیز با yt-dlp بدون پروکسی، بدون کلاینت اجباری اندروید و کاملاً متقارن با نظر متخصص"""
     print_log(f"🚜 Running yt-dlp... Quality requested: {quality}")
 
     is_youtube = "youtube.com" in url.lower() or "youtu.be" in url.lower()
     absolute_job_dir = str(job_dir.resolve())
     quality = (quality or "max").strip().lower()
 
+    # سیستم فیلتر و سورتینگ هوشمند کیفیت
     if quality == "1080":
         format_str = "bv*+ba/b"
         sort_args = ["-S", "height:1080"]
@@ -90,7 +92,6 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
         format_str = "bv*+ba/b"
         sort_args = []
 
-    # 🚨 دستور بدون پروکسی و سبک 🚨
     cmd = [
         "yt-dlp", "--rm-cache-dir", 
         "-f", format_str, 
@@ -115,7 +116,8 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
         cmd.extend(["--merge-output-format", "mp4", "--postprocessor-args", "ffmpeg:-movflags +faststart"])
 
     if is_youtube:
-        cmd.extend(["--extractor-args", "youtube:player_client=android", "--remote-components", "ejs:github"])
+        # 🚨 فیکس نهایی: کلاینت اندروید حذف شد تا به انتخاب اتوماتیک خودِ yt-dlp سپرده شود (همگام با نظر متخصص) 🚨
+        cmd.extend(["--remote-components", "ejs:github"])
 
     cmd.append(url)
     print_log(f"Executing: {' '.join(cmd)}")
@@ -135,7 +137,7 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
 async def main():
     print_log("✅ Railway Worker Ready! Polling Hugging Face for jobs...\n")
 
-    # 🚨 ساخت خودکار فایل cookies.txt در بدو اجرای سرور از روی متغیر محیطی ریل‌وی 🚨
+    # سیستم خودکار: خواندن کوکی‌های جدید شما از متغیر محیطی ریل‌وی و تبدیل خودکار به فایل
     yt_cookies = os.environ.get("YT_COOKIES")
     if yt_cookies:
         with open("cookies.txt", "w", encoding="utf-8") as f:
@@ -163,7 +165,6 @@ async def main():
 
                         try:
                             download_success = False
-                            
                             try:
                                 await download_video_via_ytdlp(url, job_dir, quality)
                                 download_success = True
