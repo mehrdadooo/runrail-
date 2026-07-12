@@ -14,11 +14,13 @@ def print_log(msg):
     print(msg, flush=True)
     sys.stdout.flush()
 
+# ─── تنظیمات اختصاصی شما ───
 API_ID = int(os.environ.get("API_ID", "39884025"))
 API_HASH = os.environ.get("API_HASH", "24ce21160fcabd7e7c0de00a77b45ef3")
 HF_URL = os.environ.get("HF_URL", "https://downloads89oouu-downloader.hf.space") 
 WORKER_SECRET = os.environ.get("WORKER_SECRET", "ali_vip_worker_2026")
 
+# سشن‌های ۵ گانه بدون کوچک‌ترین ایراد املایی
 BOT_SESSIONS = [
     "BAJglPkAO0RCs_NW3uELJV95CRa17odKleHTrosLpwhRpmfX3N1K7SqQobP1kJvc6czR6E1z5j9TChl_X5_hHlAtx5RZH-xdFiOfJ_CrTMrTRKY2wzpe9dC2E9CitkBqwgZQDyHbiLZC-mrJPoXgDZ2tGeNwMMbWd3kHal3me4N8HloJcvwbR93nopWSZaO1VE9OGol8iczRSPovbqMcexgkquu7yb8EO2U6aeHZOqiExD8Vdibnj8W4QUQLA60bdhNhZGSC4EmdKXKCq32DfZHFtNNxC3RMmh3h1xJdS6Jf4W9IJaR32E5mS8pM-COP9N9pCoLWlw-2XjQiSu5KM9AQjGcs5wAAAAINTZ2uAQ",
     "BAJglPkAEIHq7qQmQFqUMINW5U6OolhKB8sxXd5mn0pLpwl6mB5fRnvM8UFmd2wf-7N0oDZ0-Rms2QlSr9JMkRoXAAGxKTp0tj0kK_mUobjFlOtS8hctWZgSwNjcsEDXprLU4f7CMQLvRskRzpPkShd1TxsEuzjtjg2sq9_Ed1hBQan1-BFBdAJ2wVNGSfg6zOAUBgV1XUU1_SAl7LywJJQUmSeQEB8dBX_-tmUqJVzpJI6iorwqPxYu8n5k2bPnXdtRB-vbZf-Oi2Cv-1wl-cvG_0vTVPcVUnTiIJjigDpXRz_Eu0lmVIiRhSNtxJvtSj_4u1z-Ze9qnQOCfTNQ3dRQQHYO1wAAAAINTZ2uAQ",
@@ -27,18 +29,17 @@ BOT_SESSIONS = [
     "BAJglPkAnFvYFhSl3hlS4GIGt1SE-9C07UeeF0iteez4skX9hDjV3v_MpG7XN50rodIXGUghdjN_s_ePRYiY2_0d7cOROP1EvEhbcNp1c7FaJzYzRNbC4ejWuqdVF88yRh7Y1_1frOzsrEKlFF8UWq2bl6jeOPcTyl0OZGkosKhuXXIVbnM9h_-X96MLqvRCPlvW9IrBjby-HXHlE_RFAw-68JViTuVNZz6zEFsDWV0M-D5-L8nRfedqEFP0Y1pg_7JZQnCggHKYUJ7lvhCa9-XCo1PJQZjbj9ukDM53B7WoZgpfKGjtnuRfp0kHEuZYrZGtXUHs_N7wmLdrZfeolKQ6RNa1nAAAAAINTZ2uAQ"
 ]
 
+COOKIE_FILE_PATH = Path("cookies.txt")
+
 async def download_via_cobalt(url, job_dir, quality="max"):
-    """دانلود با کبالت (سریع‌ترین راه برای اینستاگرام، تیک‌تاک و یوتیوب‌های بن‌شده)"""
     print_log(f"🌟 Starting Cobalt API fallback for: {url} | Quality: {quality}")
     api_urls = ["https://api.cobalt.tools/api/json", "https://cobalt.q0.pm/api/json", "https://api.cobalt.tools/"]
     headers = {
         "Accept": "application/json", "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
     }
-    
     payload = {"url": url, "vQuality": quality if quality != "audio" else "max"}
-    if quality == "audio":
-        payload["isAudioOnly"] = True
+    if quality == "audio": payload["isAudioOnly"] = True
 
     async with aiohttp.ClientSession() as session:
         video_url = None
@@ -56,7 +57,7 @@ async def download_via_cobalt(url, job_dir, quality="max"):
         ext = "mp3" if quality == "audio" else "mp4"
         file_path = f"{job_dir.resolve()}/video.{ext}"
         async with session.get(video_url) as video_resp:
-            if video_resp.status != 200: raise Exception("Download failed from Cobalt URL.")
+            if video_resp.status != 200: raise Exception("Download failed.")
             with open(file_path, 'wb') as f:
                 while True:
                     chunk = await video_resp.content.read(2 * 1024 * 1024)
@@ -66,7 +67,7 @@ async def download_via_cobalt(url, job_dir, quality="max"):
         return True
 
 async def download_video_via_ytdlp(url, job_dir, quality="max"):
-    """دانلود تمیز با yt-dlp بدون پروکسی و بدون کندی"""
+    """دانلود با منطق برتر و کاملاً تمیزِ بدون فیلترهای مزاحم در Hot Path"""
     print_log(f"🚜 Running yt-dlp... Quality requested: {quality}")
 
     is_youtube = "youtube.com" in url.lower() or "youtu.be" in url.lower()
@@ -102,7 +103,6 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
         "-o", f"{absolute_job_dir}/video.%(ext)s"
     ]
 
-    # تولید فایل‌های کم‌حجم تامنیل و json برای تلگرام + فست استارت
     if quality != "audio":
         cmd.extend([
             "--merge-output-format", "mp4",
@@ -115,10 +115,15 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
         cmd.extend(["--extract-audio", "--audio-format", "mp3"])
 
     if is_youtube:
-        cmd.extend(["--extractor-args", "youtube:player_client=android", "--remote-components", "ejs:github"])
+        cmd.extend([
+            "--proxy", "socks5h://127.0.0.1:8086", # پروکسی لوکال ریل‌وی
+            "--extractor-args", "youtube:player_client=android",
+            "--remote-components", "ejs:github"
+        ])
+        if COOKIE_FILE_PATH.exists():
+            cmd.extend(["--cookies", str(COOKIE_FILE_PATH.resolve())])
 
     cmd.append(url)
-    
     print_log(f"Executing: {' '.join(cmd)}")
         
     process = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
@@ -135,6 +140,13 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
 
 async def main():
     print_log("✅ Railway Worker Ready! Polling Hugging Face for jobs...\n")
+
+    # 🚨 سیستم خودکار: خواندن کوکی‌های جدید شما از متغیر محیطی ریل‌وی و تبدیل به فایل 🚨
+    yt_cookies = os.environ.get("YT_COOKIES")
+    if yt_cookies:
+        with open("cookies.txt", "w", encoding="utf-8") as f:
+            f.write(yt_cookies)
+        print_log("✅ Fresh cookies.txt generated on Railway from YT_COOKIES environment variable.")
 
     async with aiohttp.ClientSession() as session:
         while True:
@@ -157,7 +169,6 @@ async def main():
 
                         try:
                             download_success = False
-                            
                             try:
                                 await download_video_via_ytdlp(url, job_dir, quality)
                                 download_success = True
@@ -173,12 +184,10 @@ async def main():
                             if not matches or not download_success: raise FileNotFoundError("Video/Audio file not found on disk!")
                             file_path = str(matches[0].resolve())
 
-                            # پیدا کردن عکس کاور
                             thumb_path = None
                             thumb_matches = list(job_dir.glob("*.jpg"))
                             if thumb_matches: thumb_path = str(thumb_matches[0].resolve())
 
-                            # خواندن متادیتا از JSON
                             width, height, duration = 0, 0, 0
                             info_matches = list(job_dir.glob("*.info.json"))
                             if info_matches:
