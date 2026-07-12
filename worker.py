@@ -6,18 +6,21 @@ import shutil
 import uuid
 import random
 import json
+import socket
 from pathlib import Path
 from pyrogram import Client
 from pyrogram.errors import FloodWait, AuthKeyDuplicated, AuthKeyInvalid
 
+# ─── تخلیه فوری خروجی برای نمایش زنده و ثانیه‌ای لاگ‌ها در Railway ───
 def print_log(msg):
     print(msg, flush=True)
     sys.stdout.flush()
 
-API_ID = int(os.environ.get("API_ID", "39884025"))
-API_HASH = os.environ.get("API_HASH", "24ce21160fcabd7e7c0de00a77b45ef3")
-HF_URL = os.environ.get("HF_URL", "https://downloads89oouu-downloader.hf.space") 
-WORKER_SECRET = os.environ.get("WORKER_SECRET", "ali_vip_worker_2026")
+# ─── تنظیمات اختصاصی شما ───
+API_ID = 39884025
+API_HASH = "24ce21160fcabd7e7c0de00a77b45ef3"
+HF_URL = "https://downloads89oouu-downloader.hf.space" 
+WORKER_SECRET = "ali_vip_worker_2026"
 
 BOT_SESSIONS = [
     "BAJglPkAO0RCs_NW3uELJV95CRa17odKleHTrosLpwhRpmfX3N1K7SqQobP1kJvc6czR6E1z5j9TChl_X5_hHlAtx5RZH-xdFiOfJ_CrTMrTRKY2wzpe9dC2E9CitkBqwgZQDyHbiLZC-mrJPoXgDZ2tGeNwMMbWd3kHal3me4N8HloJcvwbR93nopWSZaO1VE9OGol8iczRSPovbqMcexgkquu7yb8EO2U6aeHZOqiExD8Vdibnj8W4QUQLA60bdhNhZGSC4EmdKXKCq32DfZHFtNNxC3RMmh3h1xJdS6Jf4W9IJaR32E5mS8pM-COP9N9pCoLWlw-2XjQiSu5KM9AQjGcs5wAAAAINTZ2uAQ",
@@ -30,7 +33,7 @@ BOT_SESSIONS = [
 COOKIE_FILE_PATH = Path("cookies.txt")
 
 async def download_via_cobalt(url, job_dir, quality="max"):
-    """دانلود با کبالت (سریع‌ترین راه برای اینستاگرام، تیک‌تاک و یوتیوب‌های بن‌شده)"""
+    """دانلود با کبالت به همراه اعمال کیفیت درخواستی کاربر برای اینستاگرام/تیک‌تاک"""
     print_log(f"🌟 Starting Cobalt API fallback for: {url} | Quality: {quality}")
     api_urls = ["https://api.cobalt.tools/api/json", "https://cobalt.q0.pm/api/json", "https://api.cobalt.tools/"]
     headers = {
@@ -58,7 +61,7 @@ async def download_via_cobalt(url, job_dir, quality="max"):
         ext = "mp3" if quality == "audio" else "mp4"
         file_path = f"{job_dir.resolve()}/video.{ext}"
         async with session.get(video_url) as video_resp:
-            if video_resp.status != 200: raise Exception("Download failed from Cobalt URL.")
+            if video_resp.status != 200: raise Exception("Download failed.")
             with open(file_path, 'wb') as f:
                 while True:
                     chunk = await video_resp.content.read(2 * 1024 * 1024)
@@ -68,14 +71,13 @@ async def download_via_cobalt(url, job_dir, quality="max"):
         return True
 
 async def download_video_via_ytdlp(url, job_dir, quality="max"):
-    """دانلود تمیز با yt-dlp بدون پروکسی، بدون کلاینت اجباری اندروید و کاملاً متقارن با نظر متخصص"""
+    """دانلود پرسرعت یوتیوب بر اساس فیلترهای کیفیت و مجهز به FastStart و استخراج فوری کاور"""
     print_log(f"🚜 Running yt-dlp... Quality requested: {quality}")
-
     is_youtube = "youtube.com" in url.lower() or "youtu.be" in url.lower()
     absolute_job_dir = str(job_dir.resolve())
     quality = (quality or "max").strip().lower()
-
-    # سیستم فیلتر و سورتینگ هوشمند کیفیت
+    
+    # تنظیم فرمت و سورتینگ هوشمند
     if quality == "1080":
         format_str = "bv*+ba/b"
         sort_args = ["-S", "height:1080"]
@@ -91,34 +93,38 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
     else:
         format_str = "bv*+ba/b"
         sort_args = []
-
+        
     cmd = [
-        "yt-dlp", "--rm-cache-dir", 
+        "yt-dlp",
         "-f", format_str, 
         *sort_args,
-    ]
-
-    # تزریق کوکی‌ها به خط فرمان در صورت وجود روی ریل‌وی
-    if COOKIE_FILE_PATH.exists():
-        cmd.extend(["--cookies", str(COOKIE_FILE_PATH.resolve())])
-        print_log("🍪 cookies.txt successfully injected into yt-dlp.")
-
-    cmd.extend([
+        
+        # 🚨 استخراج همزمان عکس و متادیتا بدون ادغام‌های سنگین (نهایت سرعت) 🚨
+        "--write-info-json",
+        "--write-thumbnail",
+        "--convert-thumbnails", "jpg",
+        
         "--impersonate", "chrome",
         "--no-check-certificate", "--force-ipv4", "--retries", "5",
         "--fragment-retries", "infinite",
         "-o", f"{absolute_job_dir}/video.%(ext)s"
-    ])
-
+    ]
+    
     if quality == "audio":
         cmd.extend(["--extract-audio", "--audio-format", "mp3"])
     else:
         cmd.extend(["--merge-output-format", "mp4", "--postprocessor-args", "ffmpeg:-movflags +faststart"])
 
     if is_youtube:
-        # 🚨 فیکس نهایی: کلاینت اندروید حذف شد تا به انتخاب اتوماتیک خودِ yt-dlp سپرده شود (همگام با نظر متخصص) 🚨
-        cmd.extend(["--remote-components", "ejs:github"])
-
+        # 🚨 استفاده از پروکسی سایفون 8086 برای یوتیوب روی Railway 🚨
+        cmd.extend([
+            "--proxy", "socks5h://127.0.0.1:8086",
+            "--extractor-args", "youtube:player_client=android", 
+            "--remote-components", "ejs:github"
+        ])
+        if COOKIE_FILE_PATH.exists():
+            cmd.extend(["--cookies", str(COOKIE_FILE_PATH.resolve())])
+        
     cmd.append(url)
     print_log(f"Executing: {' '.join(cmd)}")
         
@@ -137,7 +143,7 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
 async def main():
     print_log("✅ Railway Worker Ready! Polling Hugging Face for jobs...\n")
 
-    # سیستم خودکار: خواندن کوکی‌های جدید شما از متغیر محیطی ریل‌وی و تبدیل خودکار به فایل
+    # تولید خودکار فایل کوکی از روی متغیر محیطی ریل‌وی
     yt_cookies = os.environ.get("YT_COOKIES")
     if yt_cookies:
         with open("cookies.txt", "w", encoding="utf-8") as f:
@@ -176,6 +182,7 @@ async def main():
                                 await download_via_cobalt(url, job_dir, quality)
                                 download_success = True
 
+                            # فیلتر کردن فایل‌های عکس از ویدیوی اصلی
                             matches = list(job_dir.glob("video.mp4")) or list(job_dir.glob("video.mp3")) or [m for m in job_dir.glob("video.*") if m.suffix.lower() not in ['.jpg', '.json']]
                             if not matches or not download_success: raise FileNotFoundError("Video/Audio file not found on disk!")
                             file_path = str(matches[0].resolve())
@@ -185,7 +192,7 @@ async def main():
                             thumb_matches = list(job_dir.glob("*.jpg"))
                             if thumb_matches: thumb_path = str(thumb_matches[0].resolve())
 
-                            # خواندن متادیتا از JSON
+                            # استخراج متادیتا از فایل JSON در 0.01 ثانیه
                             width, height, duration = 0, 0, 0
                             info_matches = list(job_dir.glob("*.info.json"))
                             if info_matches:
@@ -204,6 +211,7 @@ async def main():
                                         last_percent = percent
                                         print_log(f"[{job_id}] 🚀 Uploading Progress: {percent}%")
 
+                            # ساخت پکیج آپلود با تمام متادیتاها
                             is_audio = quality == "audio"
                             upload_kwargs = {
                                 "chat_id": chat_id, 
