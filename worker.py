@@ -28,17 +28,16 @@ BOT_SESSIONS = [
 ]
 
 async def download_via_cobalt(url, job_dir, quality="max"):
-    """دانلود شبکه‌های اجتماعی با کبالت"""
+    """دانلود فوق‌سریع اینستاگرام/تیک‌تاک از Cobalt بدون درگیری با پروکسی"""
     print_log(f"🌟 Starting Cobalt API fallback for: {url} | Quality: {quality}")
     api_urls = ["https://api.cobalt.tools/api/json", "https://cobalt.q0.pm/api/json", "https://api.cobalt.tools/"]
     headers = {
         "Accept": "application/json", "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
     }
     
     payload = {"url": url, "vQuality": quality if quality != "audio" else "max"}
-    if quality == "audio":
-        payload["isAudioOnly"] = True
+    if quality == "audio": payload["isAudioOnly"] = True
 
     async with aiohttp.ClientSession() as session:
         video_url = None
@@ -66,14 +65,13 @@ async def download_via_cobalt(url, job_dir, quality="max"):
         return True
 
 async def download_video_via_ytdlp(url, job_dir, quality="max"):
-    """دانلود با منطق فوق‌سریعِ یوزرمحور و انتخاب فرمت با -S"""
+    """دانلود یوتیوب با منطق FastStart و پروکسی زنده Railway"""
     print_log(f"🚜 Running yt-dlp... Quality requested: {quality}")
 
     is_youtube = "youtube.com" in url.lower() or "youtu.be" in url.lower()
     absolute_job_dir = str(job_dir.resolve())
     quality = (quality or "max").strip().lower()
 
-    # منطق بی‌نظیر انتخاب فرمت و مرتب‌سازی
     if quality == "1080":
         format_str = "bv*+ba/b"
         sort_args = ["-S", "height:1080"]
@@ -94,7 +92,7 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
         "yt-dlp",
         "-f", format_str,
         *sort_args,
-        "--postprocessor-args", "ffmpeg:-movflags +faststart",
+        "--rm-cache-dir",
         "--impersonate", "chrome",
         "--no-check-certificate",
         "--force-ipv4",
@@ -104,27 +102,31 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
         "-o", f"{absolute_job_dir}/video.%(ext)s"
     ]
 
-    # اعمال فرمت صحیح بر اساس درخواست کاربر (جلوگیری از باگ MP4 روی Audio)
+    # 🚨 فقط استخراج کاور و FastStart (نهایت سرعت) 🚨
     if quality != "audio":
-        cmd.extend(["--merge-output-format", "mp4"])
+        cmd.extend([
+            "--merge-output-format", "mp4",
+            "--write-info-json",
+            "--write-thumbnail",
+            "--convert-thumbnails", "jpg",
+            "--postprocessor-args", "ffmpeg:-movflags +faststart"
+        ])
     else:
         cmd.extend(["--extract-audio", "--audio-format", "mp3"])
 
+    # 🚨 استفاده از پروکسی سایفون 8086 فقط برای یوتیوب 🚨
     if is_youtube:
         cmd.extend([
-            "--proxy", "socks5h://127.0.0.1:8086", # 🚨 بازگشت پروکسی حیاتی Railway 🚨
+            "--proxy", "socks5h://127.0.0.1:8086", 
             "--extractor-args", "youtube:player_client=android",
-            "--remote-components", "ejs:github",
+            "--remote-components", "ejs:github"
         ])
 
     cmd.append(url)
-
     print_log(f"Executing: {' '.join(cmd)}")
 
     process = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE
+        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
     )
     stdout, stderr = await process.communicate()
 
@@ -173,10 +175,25 @@ async def main():
                                 await download_via_cobalt(url, job_dir, quality)
                                 download_success = True
 
-                            # جستجوی فایل بدون درگیر شدن با فایل‌های کش
-                            matches = list(job_dir.glob("video.mp4")) or list(job_dir.glob("video.mp3")) or [m for m in job_dir.glob("video.*") if m.suffix.lower() not in ['.info.json', '.jpg']]
-                            if not matches or not download_success: raise FileNotFoundError("Video/Audio file not found on disk!")
+                            matches = list(job_dir.glob("video.mp4")) or list(job_dir.glob("video.mp3")) or [m for m in job_dir.glob("video.*") if m.suffix.lower() not in ['.jpg', '.json']]
+                            if not matches or not download_success: 
+                                raise FileNotFoundError("Video/Audio file not found on disk!")
                             file_path = str(matches[0].resolve())
+
+                            # 🚨 پیدا کردن عکس کاور 🚨
+                            thumb_path = None
+                            thumb_matches = list(job_dir.glob("*.jpg"))
+                            if thumb_matches: thumb_path = str(thumb_matches[0].resolve())
+
+                            # 🚨 استخراج متادیتا 🚨
+                            width, height, duration = 0, 0, 0
+                            info_matches = list(job_dir.glob("*.info.json"))
+                            if info_matches:
+                                try:
+                                    with open(info_matches[0], 'r', encoding='utf-8') as f:
+                                        info = json.load(f)
+                                        width, height, duration = info.get('width', 0), info.get('height', 0), info.get('duration', 0)
+                                except Exception: pass
 
                             last_percent = -1
                             async def progress_callback(current, total):
@@ -190,16 +207,22 @@ async def main():
                             is_audio = quality == "audio"
                             upload_kwargs = {
                                 "chat_id": chat_id, 
-                                "caption": f"🎬 **دانلود موفق**\n⚡ کیفیت: {quality}\n🌐 سرعت: سوپر فست (Railway)", 
+                                "caption": f"🎬 **دانلود موفق**\n⚡ کیفیت: {quality}", 
                                 "reply_to_message_id": message_id, 
                                 "progress": progress_callback
                             }
                             
                             if is_audio:
                                 upload_kwargs["audio"] = file_path
+                                if thumb_path: upload_kwargs["thumb"] = thumb_path
+                                if duration: upload_kwargs["duration"] = int(duration)
                             else:
                                 upload_kwargs["video"] = file_path
                                 upload_kwargs["supports_streaming"] = True
+                                if thumb_path: upload_kwargs["thumb"] = thumb_path
+                                if width: upload_kwargs["width"] = width
+                                if height: upload_kwargs["height"] = height
+                                if duration: upload_kwargs["duration"] = int(duration)
 
                             upload_success = False
                             for attempt in range(3):
