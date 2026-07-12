@@ -16,7 +16,7 @@ def print_log(msg):
 
 API_ID = int(os.environ.get("API_ID", "39884025"))
 API_HASH = os.environ.get("API_HASH", "24ce21160fcabd7e7c0de00a77b45ef3")
-HF_URL = "https://environ.get("HF_URL", "https://downloads89oouu-downloader.hf.space") 
+HF_URL = os.environ.get("HF_URL", "https://downloads89oouu-downloader.hf.space") 
 WORKER_SECRET = os.environ.get("WORKER_SECRET", "ali_vip_worker_2026")
 
 BOT_SESSIONS = [
@@ -89,7 +89,6 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
         format_str = "bv*+ba/b"
         sort_args = []
 
-    # دستورات پایه بدون هیچ پروکسی و --rm-cache-dir
     cmd = [
         "yt-dlp",
         "-f", format_str,
@@ -103,7 +102,7 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
         "-o", f"{absolute_job_dir}/video.%(ext)s"
     ]
 
-    # فقط تولید فایل‌های کم‌حجم تامنیل و json برای تلگرام + فست استارت
+    # تولید فایل‌های کم‌حجم تامنیل و json برای تلگرام + فست استارت
     if quality != "audio":
         cmd.extend([
             "--merge-output-format", "mp4",
@@ -116,7 +115,6 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
         cmd.extend(["--extract-audio", "--audio-format", "mp3"])
 
     if is_youtube:
-        # استفاده از کلاینت اندروید برای فرار از 403 (بدون پروکسی)
         cmd.extend(["--extractor-args", "youtube:player_client=android", "--remote-components", "ejs:github"])
 
     cmd.append(url)
@@ -160,15 +158,13 @@ async def main():
                         try:
                             download_success = False
                             
-                            # ۱. تلاش مستقیم با yt-dlp
                             try:
                                 await download_video_via_ytdlp(url, job_dir, quality)
                                 download_success = True
                             except Exception as e:
                                 print_log(f"⚠️ yt-dlp download failed: {e}")
                             
-                            # ۲. در صورت شکست، Cobalt فوراً وارد عمل می‌شود
-                            if not download_success:
+                            if not download_success and not ("youtube.com" in url or "youtu.be" in url):
                                 print_log("🔄 Falling back to Cobalt API...")
                                 await download_via_cobalt(url, job_dir, quality)
                                 download_success = True
