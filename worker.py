@@ -22,20 +22,13 @@ def print_log(msg: str) -> None:
 # ─── Configuration ───
 API_ID = int(os.environ.get("API_ID", "39884025"))
 API_HASH = os.environ.get("API_HASH", "24ce21160fcabd7e7c0de00a77b45ef3")
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "8813125038:AAFwiPBCMSJvFmKlFSHNqApJ-d0kzW0lUv4")
 HF_URL = os.environ.get("HF_URL", "https://downloads89oouu-downloader.hf.space")
 WORKER_SECRET = os.environ.get("WORKER_SECRET", "ali_vip_worker_2026")
 
-# 🚨 فیکس هوشمند: اگر در ریل‌وی تنظیم نشود، خودکار روی پروکسی سایفون ریل‌وی ست می‌شود 🚨
-YTDLP_PROXY = os.environ.get("YTDLP_PROXY", "socks5h://127.0.0.1:8086").strip()
+# Optional: extra yt-dlp args for YouTube only.
+YTDLP_YOUTUBE_ARGS = os.environ.get("YTDLP_YOUTUBE_ARGS", "").strip()
 
-# 🚨 فیکس هوشمند: فعال‌سازی خودکار فرمول نینجای اندروید و دنو در ریل‌وی 🚨
-YTDLP_YOUTUBE_ARGS = os.environ.get(
-    "YTDLP_YOUTUBE_ARGS", 
-    '--extractor-args "youtube:player_client=android" --remote-components "ejs:github"'
-).strip()
-
-# 🚨 استخر سشن‌های ۵ گانه کاملاً پاک‌سازی شده و بدون نقص شما 🚨
+# 🚨 سشن‌های ۵ گانه بدون نقص شما 🚨
 BOT_SESSIONS = [
     "BAJglPkAO0RCs_NW3uELJV95CRa17odKleHTrosLpwhRpmfX3N1K7SqQobP1kJvc6czR6E1z5j9TChl_X5_hHlAtx5RZH-xdFiOfJ_CrTMrTRKY2wzpe9dC2E9CitkBqwgZQDyHbiLZC-mrJPoXgDZ2tGeNwMMbWd3kHal3me4N8HloJcvwbR93nopWSZaO1VE9OGol8iczRSPovbqMcexgkquu7yb8EO2U6aeHZOqiExD8Vdibnj8W4QUQLA60bdhNhZGSC4EmdKXKCq32DfZHFtNNxC3RMmh3h1xJdS6Jf4W9IJaR32E5mS8pM-COP9N9pCoLWlw-2XjQiSu5KM9AQjGcs5wAAAAINTZ2uAQ",
     "BAJglPkAEIHq7qQmQFqUMINW5U6OolhKB8sxXd5mn0pLpwl6mB5fRnvM8UFmd2wf-7N0oDZ0-Rms2QlSr9JMkRoXAAGxKTp0tj0kK_mUobjFlOtS8hctWZgSwNjcsEDXprLU4f7CMQLvRskRzpPkShd1TxsEuzjtjg2sq9_Ed1hBQan1-BFBdAJ2wVNGSfg6zOAUBgV1XUU1_SAl7LywJJQUmSeQEB8dBX_-tmUqJVzpJI6iorwqPxYu8n5k2bPnXdtRB-vbZf-Oi2Cv-1wl-cvG_0vTVPcVUnTiIJjigDpXRz_Eu0lmVIiRhSNtxJvtSj_4u1z-Ze9qnQOCfTNQ3dRQQHYO1wAAAAINTZ2uAQ",
@@ -179,6 +172,7 @@ async def download_video_via_ytdlp(url: str, job_dir: Path, quality: str = "max"
         format_str = "bv*+ba/best"
         sort_args = []
 
+    # 🚨 پروکسی به طور کامل از ریشه حذف شد 🚨
     cmd = [
         "yt-dlp",
         "-f", format_str,
@@ -199,10 +193,6 @@ async def download_video_via_ytdlp(url: str, job_dir: Path, quality: str = "max"
     if COOKIE_FILE_PATH.exists():
         cmd.extend(["--cookies", str(COOKIE_FILE_PATH.resolve())])
         print_log("🍪 cookies.txt injected into yt-dlp.")
-
-    if YTDLP_PROXY:
-        cmd.extend(["--proxy", YTDLP_PROXY])
-        print_log(f"🧭 yt-dlp proxy enabled: {YTDLP_PROXY}")
 
     if quality == "audio":
         cmd.extend([
@@ -395,7 +385,7 @@ async def main():
                                 print_log(f"[{job_id}] 🛑 Telegram Rate Limit: Must wait {e.value} seconds.")
                                 await asyncio.sleep(e.value + 2)
                             except Exception as e:
-                                print_log(f"[{job_id}] ❌ Upload attempt {attempt + 1} failed: {e}")
+                                print_log(f"❌ Upload attempt {attempt + 1} failed: {e}")
 
                         if not upload_success:
                             print_log(f"[{job_id}] ❌ Upload failed after all retries.")
