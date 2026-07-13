@@ -1,5 +1,6 @@
 pyrogram
 tgcrypto
 yt-dlp
+curl_cffi
 python-dotenv
 aiohttp
