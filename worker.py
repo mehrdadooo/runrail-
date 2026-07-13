@@ -1,18 +1,6 @@
 import os
 import sys
-import asyncio
-import aiohttp
-import shutil
-import uuid
-import random
-import json
-import shlex
-import socket
-import subprocess
-import urllib.parse
-import urllib.request
-import zipfile
-from pathlib import Path
+import Path
 from typing import Optional
 
 from pyrogram import Client
