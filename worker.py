@@ -6,23 +6,28 @@ import shutil
 import uuid
 import random
 import json
+import shlex
+import socket
+import subprocess
 import urllib.parse
 import urllib.request
 import zipfile
-import socket
-import subprocess
 from pathlib import Path
 from pyrogram import Client
 from pyrogram.errors import FloodWait, AuthKeyDuplicated, AuthKeyInvalid
 
-def print_log(msg):
+def print_log(msg: str) -> None:
     print(msg, flush=True)
     sys.stdout.flush()
 
 API_ID = int(os.environ.get("API_ID", "39884025"))
 API_HASH = os.environ.get("API_HASH", "24ce21160fcabd7e7c0de00a77b45ef3")
-HF_URL = os.environ.get("HF_URL", "https://downloads89oouu-downloader.hf.space") 
+HF_URL = os.environ.get("HF_URL", "https://downloads89oouu-downloader.hf.space")
 WORKER_SECRET = os.environ.get("WORKER_SECRET", "ali_vip_worker_2026")
+
+# 🚨 کانفیگ VLESS رویایی شما 🚨
+DEFAULT_VLESS = "vless://c89f398b-1ab4-4317-9142-924f50ea3b65@104.21.95.149:443?path=%2FeyJqdW5rIjoiSm04dngxZHk4WjJQVjFkbSIsInByb3RvY29sIjoidmwiLCJtb2RlIjoicHJlZml4IiwicGFuZWxJUHMiOlsiWzI2MDI6ZmM1OTpiMDo2NDo6XSJdfQ%3D%3D%3Fed%3D2560&security=tls&alpn=http%2F1.1&encryption=none&insecure=0&host=fancy-sky-d0d3.apextunnel1.workers.dev&fp=chrome&type=ws&allowInsecure=0&sni=fanCy-sky-d0D3.aPeXTunNel1.wORkERs.deV#Worker-Proxy"
+VLESS_LINK = os.environ.get("VLESS_LINK", DEFAULT_VLESS).strip()
 
 BOT_SESSIONS = [
     "BAJglPkAO0RCs_NW3uELJV95CRa17odKleHTrosLpwhRpmfX3N1K7SqQobP1kJvc6czR6E1z5j9TChl_X5_hHlAtx5RZH-xdFiOfJ_CrTMrTRKY2wzpe9dC2E9CitkBqwgZQDyHbiLZC-mrJPoXgDZ2tGeNwMMbWd3kHal3me4N8HloJcvwbR93nopWSZaO1VE9OGol8iczRSPovbqMcexgkquu7yb8EO2U6aeHZOqiExD8Vdibnj8W4QUQLA60bdhNhZGSC4EmdKXKCq32DfZHFtNNxC3RMmh3h1xJdS6Jf4W9IJaR32E5mS8pM-COP9N9pCoLWlw-2XjQiSu5KM9AQjGcs5wAAAAINTZ2uAQ",
@@ -34,15 +39,8 @@ BOT_SESSIONS = [
 
 COOKIE_FILE_PATH = Path("cookies.txt")
 
-# 🚨 اولین کانفیگ پرسرعت شما به عنوان دیفالت قرار گرفت 🚨
-DEFAULT_VLESS = "vless://6522fd56-5f15-4c0b-96cd-b69034d5e8e9@still-mountain-f7fa.yyuuyouuu7.workers.dev:443?encryption=none&host=still-mountain-f7fa.yyuuyouuu7.workers.dev&type=ws&security=tls&path=%2FeyJxZFc1cklqb2llalkxWjNFd1JUSmFRbTlaY3lJc0luQnliM1J2WTI5c0lqb2lkbXdpTENKdGIyUmxJam9pY0hKdmVIbHBjQ0lzSW5CaGJtVnNTVkJ6SWpwYlhYMCUzRCUzRmVkJTNEMjU2MCZzbmk=stilL-mouNtAiN-f7Fa.YyuUyOuuU7.WOrkerS.dEV&fp=chrome&alpn=http%2F1.1#BPB_Worker"
-VLESS_LINK = os.environ.get("VLESS_LINK", DEFAULT_VLESS)
-
 def parse_vless_to_xray_json(vless_url):
-    """تبدیل جادویی لینک VLESS به فایل کانفیگ استاندارد Xray در صدم ثانیه"""
-    if '#' in vless_url:
-        vless_url = vless_url.split('#')[0]
-        
+    if '#' in vless_url: vless_url = vless_url.split('#')[0]
     parsed = urllib.parse.urlparse(vless_url)
     uuid_str = parsed.username
     address = parsed.hostname
@@ -58,6 +56,7 @@ def parse_vless_to_xray_json(vless_url):
     alpn = qs.get('alpn', ['http/1.1'])[0]
     
     config_json = {
+        "log": {"loglevel": "warning"},
         "inbounds": [{"port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": {"udp": True}}],
         "outbounds": [{
             "protocol": "vless",
@@ -65,9 +64,9 @@ def parse_vless_to_xray_json(vless_url):
             "streamSettings": {"network": network, "security": security}
         }]
     }
-    
     if security == "tls":
-        config_json["outbounds"][0]["streamSettings"]["tlsSettings"] = {"serverName": sni, "fingerprint": fp, "alpn": alpn.split(',') if ',' in alpn else [alpn]}
+        alpn_list = alpn.split(',') if ',' in alpn else [alpn]
+        config_json["outbounds"][0]["streamSettings"]["tlsSettings"] = {"serverName": sni, "fingerprint": fp, "alpn": alpn_list}
     if network == "ws":
         config_json["outbounds"][0]["streamSettings"]["wsSettings"] = {"path": path, "headers": {"Host": host} if host else {}}
         
@@ -75,7 +74,7 @@ def parse_vless_to_xray_json(vless_url):
         json.dump(config_json, f, indent=2)
 
 async def ensure_xray():
-    """دانلود و اجرای موتور Xray در صورت نیاز"""
+    """دانلود، استارت و تست کامل شبکه Xray VLESS با لاگ‌های زنده"""
     if not os.path.exists("xray"):
         print_log("⚙️ Downloading Xray-core...")
         urllib.request.urlretrieve("https://github.com/XTLS/Xray-core/releases/download/v1.8.9/Xray-linux-64.zip", "xray.zip")
@@ -84,20 +83,30 @@ async def ensure_xray():
         os.chmod("xray", 0o755)
         os.remove("xray.zip")
 
-    # ساخت فایل کانفیگ از روی لینک شما
     parse_vless_to_xray_json(VLESS_LINK)
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         if s.connect_ex(('127.0.0.1', 10808)) == 0:
+            print_log("🟢 Xray VLESS Proxy is already running on port 10808.")
             return True
 
     print_log("🚀 Starting Xray VLESS Engine on port 10808...")
-    subprocess.Popen(["./xray", "run", "-c", "config.json"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    await asyncio.sleep(2)
-    return True
+    subprocess.Popen(["./xray", "run", "-c", "config.json"], stdout=open("xray.log", "w"), stderr=subprocess.STDOUT)
+    await asyncio.sleep(3)
+    
+    try:
+        proc = await asyncio.create_subprocess_exec("curl", "-v", "-x", "socks5h://127.0.0.1:10808", "https://icanhazip.com", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        stdout, stderr = await process.communicate()
+        if proc.returncode == 0:
+            print_log(f"✅ VLESS Connection OK! Shield IP: {stdout.decode().strip()}")
+        else:
+            print_log(f"❌ VLESS Connection Failed! Curl Error: {stderr.decode().strip()}")
+            with open("xray.log", "r") as f:
+                print_log(f"📝 Xray Internal Logs:\n{f.read()}")
+    except Exception as e:
+        print_log(f"❌ Curl exception: {e}")
 
 async def download_via_cobalt(url, job_dir, quality="max"):
-    """دانلود با کبالت"""
     print_log(f"🌟 Starting Cobalt API fallback for: {url} | Quality: {quality}")
     api_urls = ["https://api.cobalt.tools/api/json", "https://cobalt.q0.pm/api/json", "https://api.cobalt.tools/"]
     headers = {"Accept": "application/json", "Content-Type": "application/json", "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
@@ -127,7 +136,7 @@ async def download_via_cobalt(url, job_dir, quality="max"):
                     if not chunk: break
                     f.write(chunk)
         print_log("✅ Successfully downloaded via Cobalt!")
-        return True
+        return str(Path(file_path).resolve())
 
 async def download_video_via_ytdlp(url, job_dir, quality="max"):
     print_log(f"🚜 Running yt-dlp... Quality requested: {quality}")
@@ -135,45 +144,29 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
     absolute_job_dir = str(job_dir.resolve())
     quality = (quality or "max").strip().lower()
 
-    if quality == "1080":
-        format_str = "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best"
-        sort_args = ["-S", "height:1080"]
-    elif quality == "720":
-        format_str = "bestvideo[height<=720]+bestaudio/best[height<=720]/best"
-        sort_args = ["-S", "height:720"]
-    elif quality == "480":
-        format_str = "bestvideo[height<=480]+bestaudio/best[height<=480]/best"
-        sort_args = ["-S", "height:480"]
-    elif quality == "audio":
-        format_str = "bestaudio/best"
-        sort_args = []
-    else:
-        format_str = "bv*+ba/best"
-        sort_args = []
+    if quality == "1080": format_str, sort_args = "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best", ["-S", "height:1080"]
+    elif quality == "720": format_str, sort_args = "bestvideo[height<=720]+bestaudio/best[height<=720]/best", ["-S", "height:720"]
+    elif quality == "480": format_str, sort_args = "bestvideo[height<=480]+bestaudio/best[height<=480]/best", ["-S", "height:480"]
+    elif quality == "audio": format_str, sort_args = "bestaudio/best", []
+    else: format_str, sort_args = "bv*+ba/best", []
 
     cmd = [
-        "yt-dlp", "-f", format_str, *sort_args, "--no-playlist",
-        "--impersonate", "chrome", "--no-check-certificate", "--force-ipv4",
-        "--retries", "5", "--fragment-retries", "infinite",
+        "yt-dlp", "-v", # 🚨 چاپ تمام خطاها و هشدارهای yt-dlp به صورت زنده
+        "-f", format_str, *sort_args, "--no-playlist",
+        "--impersonate", "chrome", "--no-check-certificate", "--force-ipv4", "--retries", "5", "--fragment-retries", "infinite",
         "--write-info-json", "--write-thumbnail", "--convert-thumbnails", "jpg",
-        "--print", "after_move:filepath", "-o", f"{absolute_job_dir}/video.%(ext)s"
+        "-o", f"{absolute_job_dir}/video.%(ext)s"
     ]
 
     if COOKIE_FILE_PATH.exists():
         cmd.extend(["--cookies", str(COOKIE_FILE_PATH.resolve())])
 
-    if quality == "audio":
-        cmd.extend(["--extract-audio", "--audio-format", "mp3"])
-    else:
-        cmd.extend(["--merge-output-format", "mp4", "--postprocessor-args", "ffmpeg:-movflags +faststart"])
+    if quality == "audio": cmd.extend(["--extract-audio", "--audio-format", "mp3"])
+    else: cmd.extend(["--merge-output-format", "mp4", "--postprocessor-args", "ffmpeg:-movflags +faststart"])
 
     if is_youtube:
-        await ensure_xray() # 🚨 استارت موتور قدرتمند Xray 🚨
-        cmd.extend([
-            "--proxy", "socks5h://127.0.0.1:10808", # 🚨 انتقال ترافیک به تونل Xray
-            "--extractor-args", "youtube:player_client=android", 
-            "--remote-components", "ejs:github"
-        ])
+        await ensure_xray() # 🚨 تضمین روشن بودن VLESS
+        cmd.extend(["--proxy", "socks5h://127.0.0.1:10808", "--extractor-args", "youtube:player_client=android", "--remote-components", "ejs:github"])
 
     cmd.append(url)
     print_log(f"Executing: {' '.join(cmd)}")
@@ -181,17 +174,26 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
     process = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     stdout, stderr = await process.communicate()
 
+    yt_out = stdout.decode("utf-8", errors="ignore").strip()
+    yt_err = stderr.decode("utf-8", errors="ignore").strip()
+    
+    if yt_out: print_log(f"📝 --- yt-dlp stdout ---\n{yt_out}")
+    if yt_err: print_log(f"⚠️ --- yt-dlp stderr ---\n{yt_err}")
+
     if process.returncode != 0:
         raise Exception(f"yt-dlp Exit code {process.returncode}")
 
-    return True
+    matches = list(job_dir.glob("video.mp4")) or list(job_dir.glob("video.mp3")) or [m for m in job_dir.glob("video.*") if m.suffix.lower() not in ['.jpg', '.json']]
+    if not matches: raise FileNotFoundError("Video/Audio file not found on disk!")
+    return str(matches[0].resolve())
 
 async def main():
     print_log("✅ Railway Worker Ready! Polling Hugging Face for jobs...\n")
 
     yt_cookies = os.environ.get("YT_COOKIES")
-    if yt_cookies:
+    if yt_cookies and not COOKIE_FILE_PATH.exists():
         with open("cookies.txt", "w", encoding="utf-8") as f: f.write(yt_cookies)
+        print_log("✅ Fresh cookies.txt generated on Railway.")
 
     async with aiohttp.ClientSession() as session:
         while True:
@@ -206,7 +208,6 @@ async def main():
 
                         url, chat_id, message_id, status_msg_id = data["url"], int(data["chat_id"]), int(data["message_id"]), int(data["status_msg_id"])
                         quality = data.get("quality", "max") 
-                        
                         job_id = str(uuid.uuid4())[:8]
                         job_dir = Path(f"jobs/{job_id}")
                         job_dir.mkdir(parents=True, exist_ok=True)
@@ -214,32 +215,37 @@ async def main():
 
                         try:
                             download_success = False
+                            media_path = None
+
                             try:
-                                await download_video_via_ytdlp(url, job_dir, quality)
+                                media_path = await download_video_via_ytdlp(url, job_dir, quality)
                                 download_success = True
                             except Exception as e:
                                 print_log(f"⚠️ yt-dlp download failed: {e}")
-                            
-                            if not download_success and not ("youtube.com" in url or "youtu.be" in url):
+
+                            if not download_success and "youtube.com" not in url.lower() and "youtu.be" not in url.lower():
                                 print_log("🔄 Falling back to Cobalt API...")
-                                await download_via_cobalt(url, job_dir, quality)
+                                media_path = await download_via_cobalt(url, job_dir, quality)
                                 download_success = True
 
-                            matches = list(job_dir.glob("video.mp4")) or list(job_dir.glob("video.mp3")) or [m for m in job_dir.glob("video.*") if m.suffix.lower() not in ['.jpg', '.json']]
-                            if not matches or not download_success: raise FileNotFoundError("Video/Audio file not found on disk!")
-                            file_path = str(matches[0].resolve())
+                            if not download_success or not media_path:
+                                raise FileNotFoundError("Video/Audio file not found on disk!")
+                            file_path = str(Path(media_path).resolve())
 
                             thumb_path = None
                             thumb_matches = list(job_dir.glob("*.jpg"))
-                            if thumb_matches: thumb_path = str(thumb_matches[0].resolve())
+                            if thumb_matches:
+                                thumb_matches.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+                                thumb_path = str(thumb_matches[0].resolve())
 
                             width, height, duration = 0, 0, 0
                             info_matches = list(job_dir.glob("*.info.json"))
                             if info_matches:
                                 try:
-                                    with open(info_matches[0], 'r', encoding='utf-8') as f:
+                                    info_matches.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+                                    with open(info_matches[0], "r", encoding="utf-8") as f:
                                         info = json.load(f)
-                                        width, height, duration = info.get('width', 0), info.get('height', 0), info.get('duration', 0)
+                                        width, height, duration = int(info.get("width") or 0), int(info.get("height") or 0), int(float(info.get("duration") or 0))
                                 except Exception: pass
 
                             last_percent = -1
@@ -252,36 +258,27 @@ async def main():
                                         print_log(f"[{job_id}] 🚀 Uploading Progress: {percent}%")
 
                             is_audio = quality == "audio"
-                            upload_kwargs = {
-                                "chat_id": chat_id, 
-                                "caption": f"🎬 **دانلود موفق**\n⚡ کیفیت: {quality}", 
-                                "reply_to_message_id": message_id, 
-                                "progress": progress_callback
-                            }
-                            
+                            upload_kwargs = {"chat_id": chat_id, "reply_to_message_id": message_id, "progress": progress_callback}
+
                             if is_audio:
-                                upload_kwargs["audio"] = file_path
+                                upload_kwargs.update({"audio": file_path, "caption": f"🎵 **دانلود موفق**\n⚡ کیفیت: {quality}"})
                                 if thumb_path: upload_kwargs["thumb"] = thumb_path
-                                if duration: upload_kwargs["duration"] = int(duration)
+                                if duration: upload_kwargs["duration"] = duration
                             else:
-                                upload_kwargs["video"] = file_path
-                                upload_kwargs["supports_streaming"] = True
+                                upload_kwargs.update({"video": file_path, "supports_streaming": True, "caption": f"🎬 **دانلود موفق**\n⚡ کیفیت: {quality}"})
                                 if thumb_path: upload_kwargs["thumb"] = thumb_path
                                 if width: upload_kwargs["width"] = width
                                 if height: upload_kwargs["height"] = height
-                                if duration: upload_kwargs["duration"] = int(duration)
+                                if duration: upload_kwargs["duration"] = duration
 
                             upload_success = False
                             for attempt in range(3):
-                                chosen_session = random.choice(BOT_SESSIONS)
-                                upload_app = Client(f"railway_{job_id}_{attempt}", api_id=API_ID, api_hash=API_HASH, session_string=chosen_session, in_memory=True)
+                                upload_app = Client(f"railway_{job_id}_{attempt}", api_id=API_ID, api_hash=API_HASH, session_string=random.choice(BOT_SESSIONS), in_memory=True)
                                 try:
                                     async with upload_app:
-                                        print_log(f"[{job_id}] 🚀 Attempt {attempt+1}: Uploading to Telegram...")
-                                        
+                                        print_log(f"[{job_id}] 🚀 Attempt {attempt + 1}: Uploading to Telegram...")
                                         if is_audio: await upload_app.send_audio(**upload_kwargs)
                                         else: await upload_app.send_video(**upload_kwargs)
-                                            
                                         try: await upload_app.delete_messages(chat_id, status_msg_id)
                                         except: pass
                                     print_log(f"[{job_id}] 🎉 Job Completed!")
@@ -289,7 +286,7 @@ async def main():
                                     break
                                 except (AuthKeyDuplicated, AuthKeyInvalid): continue
                                 except FloodWait as e: await asyncio.sleep(e.value + 2)
-                                    
+
                             if not upload_success: print_log(f"[{job_id}] ❌ Upload failed after all retries.")
 
                         except Exception as e: print_log(f"[{job_id}] ❌ Error during processing: {e}")
