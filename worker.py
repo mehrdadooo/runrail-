@@ -6,28 +6,23 @@ import shutil
 import uuid
 import random
 import json
-import shlex
-import socket
-import subprocess
 import urllib.parse
 import urllib.request
 import zipfile
+import socket
+import subprocess
 from pathlib import Path
 from pyrogram import Client
 from pyrogram.errors import FloodWait, AuthKeyDuplicated, AuthKeyInvalid
 
-def print_log(msg: str) -> None:
+def print_log(msg):
     print(msg, flush=True)
     sys.stdout.flush()
 
 API_ID = int(os.environ.get("API_ID", "39884025"))
 API_HASH = os.environ.get("API_HASH", "24ce21160fcabd7e7c0de00a77b45ef3")
-HF_URL = os.environ.get("HF_URL", "https://downloads89oouu-downloader.hf.space")
+HF_URL = os.environ.get("HF_URL", "https://downloads89oouu-downloader.hf.space") 
 WORKER_SECRET = os.environ.get("WORKER_SECRET", "ali_vip_worker_2026")
-
-# 🚨 کانفیگ VLESS رویایی شما 🚨
-DEFAULT_VLESS = "vless://c89f398b-1ab4-4317-9142-924f50ea3b65@104.21.95.149:443?path=%2FeyJqdW5rIjoiSm04dngxZHk4WjJQVjFkbSIsInByb3RvY29sIjoidmwiLCJtb2RlIjoicHJlZml4IiwicGFuZWxJUHMiOlsiWzI2MDI6ZmM1OTpiMDo2NDo6XSJdfQ%3D%3D%3Fed%3D2560&security=tls&alpn=http%2F1.1&encryption=none&insecure=0&host=fancy-sky-d0d3.apextunnel1.workers.dev&fp=chrome&type=ws&allowInsecure=0&sni=fanCy-sky-d0D3.aPeXTunNel1.wORkERs.deV#Worker-Proxy"
-VLESS_LINK = os.environ.get("VLESS_LINK", DEFAULT_VLESS).strip()
 
 BOT_SESSIONS = [
     "BAJglPkAO0RCs_NW3uELJV95CRa17odKleHTrosLpwhRpmfX3N1K7SqQobP1kJvc6czR6E1z5j9TChl_X5_hHlAtx5RZH-xdFiOfJ_CrTMrTRKY2wzpe9dC2E9CitkBqwgZQDyHbiLZC-mrJPoXgDZ2tGeNwMMbWd3kHal3me4N8HloJcvwbR93nopWSZaO1VE9OGol8iczRSPovbqMcexgkquu7yb8EO2U6aeHZOqiExD8Vdibnj8W4QUQLA60bdhNhZGSC4EmdKXKCq32DfZHFtNNxC3RMmh3h1xJdS6Jf4W9IJaR32E5mS8pM-COP9N9pCoLWlw-2XjQiSu5KM9AQjGcs5wAAAAINTZ2uAQ",
@@ -37,6 +32,8 @@ BOT_SESSIONS = [
     "BAJglPkAnFvYFhSl3hlS4GIGt1SE-9C07UeeF0iteez4skX9hDjV3v_MpG7XN50rodIXGUghdjN_s_ePRYiY2_0d7cOROP1EvEhbcNp1c7FaJzYzRNbC4ejWuqdVF88yRh7Y1_1frOzsrEKlFF8UWq2bl6jeOPcTyl0OZGkosKhuXXIVbnM9h_-X96MLqvRCPlvW9IrBjby-HXHlE_RFAw-68JViTuVNZz6zEFsDWV0M-D5-L8nRfedqEFP0Y1pg_7JZQnCggHKYUJ7lvhCa9-XCo1PJQZjbj9ukDM53B7WoZgpfKGjtnuRfp0kHEuZYrZGtXUHs_N7wmLdrZfeolKQ6RNa1nAAAAAINTZ2uAQ"
 ]
 
+DEFAULT_VLESS = "vless://c89f398b-1ab4-4317-9142-924f50ea3b65@104.21.95.149:443?path=%2FeyJqdW5rIjoiSm04dngxZHk4WjJQVjFkbSIsInByb3RvY29sIjoidmwiLCJtb2RlIjoicHJlZml4IiwicGFuZWxJUHMiOlsiWzI2MDI6ZmM1OTpiMDo2NDo6XSJdfQ%3D%3D%3Fed%3D2560&security=tls&alpn=http%2F1.1&encryption=none&insecure=0&host=fancy-sky-d0d3.apextunnel1.workers.dev&fp=chrome&type=ws&allowInsecure=0&sni=fanCy-sky-d0D3.aPeXTunNel1.wORkERs.deV#Worker-Proxy"
+VLESS_LINK = os.environ.get("VLESS_LINK", DEFAULT_VLESS).strip()
 COOKIE_FILE_PATH = Path("cookies.txt")
 
 def parse_vless_to_xray_json(vless_url):
@@ -74,7 +71,6 @@ def parse_vless_to_xray_json(vless_url):
         json.dump(config_json, f, indent=2)
 
 async def ensure_xray():
-    """دانلود، استارت و تست کامل شبکه Xray VLESS با لاگ‌های زنده"""
     if not os.path.exists("xray"):
         print_log("⚙️ Downloading Xray-core...")
         urllib.request.urlretrieve("https://github.com/XTLS/Xray-core/releases/download/v1.8.9/Xray-linux-64.zip", "xray.zip")
@@ -87,7 +83,6 @@ async def ensure_xray():
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         if s.connect_ex(('127.0.0.1', 10808)) == 0:
-            print_log("🟢 Xray VLESS Proxy is already running on port 10808.")
             return True
 
     print_log("🚀 Starting Xray VLESS Engine on port 10808...")
@@ -95,14 +90,12 @@ async def ensure_xray():
     await asyncio.sleep(3)
     
     try:
-        proc = await asyncio.create_subprocess_exec("curl", "-v", "-x", "socks5h://127.0.0.1:10808", "https://icanhazip.com", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-        stdout, stderr = await process.communicate()
+        proc = await asyncio.create_subprocess_exec("curl", "-s", "-x", "socks5h://127.0.0.1:10808", "https://icanhazip.com", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        stdout, stderr = await proc.communicate()
         if proc.returncode == 0:
             print_log(f"✅ VLESS Connection OK! Shield IP: {stdout.decode().strip()}")
         else:
-            print_log(f"❌ VLESS Connection Failed! Curl Error: {stderr.decode().strip()}")
-            with open("xray.log", "r") as f:
-                print_log(f"📝 Xray Internal Logs:\n{f.read()}")
+            print_log(f"❌ VLESS Connection Failed! Error: {stderr.decode().strip()}")
     except Exception as e:
         print_log(f"❌ Curl exception: {e}")
 
@@ -151,7 +144,7 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
     else: format_str, sort_args = "bv*+ba/best", []
 
     cmd = [
-        "yt-dlp", "-v", # 🚨 چاپ تمام خطاها و هشدارهای yt-dlp به صورت زنده
+        "yt-dlp",
         "-f", format_str, *sort_args, "--no-playlist",
         "--impersonate", "chrome", "--no-check-certificate", "--force-ipv4", "--retries", "5", "--fragment-retries", "infinite",
         "--write-info-json", "--write-thumbnail", "--convert-thumbnails", "jpg",
@@ -165,20 +158,15 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
     else: cmd.extend(["--merge-output-format", "mp4", "--postprocessor-args", "ffmpeg:-movflags +faststart"])
 
     if is_youtube:
-        await ensure_xray() # 🚨 تضمین روشن بودن VLESS
-        cmd.extend(["--proxy", "socks5h://127.0.0.1:10808", "--extractor-args", "youtube:player_client=android", "--remote-components", "ejs:github"])
+        await ensure_xray()
+        # 🚨 کلاینت اندروید ناسازگار حذف شد تا یوتیوب با VLESS فریب بخورد 🚨
+        cmd.extend(["--proxy", "socks5h://127.0.0.1:10808", "--remote-components", "ejs:github"])
 
     cmd.append(url)
     print_log(f"Executing: {' '.join(cmd)}")
 
     process = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     stdout, stderr = await process.communicate()
-
-    yt_out = stdout.decode("utf-8", errors="ignore").strip()
-    yt_err = stderr.decode("utf-8", errors="ignore").strip()
-    
-    if yt_out: print_log(f"📝 --- yt-dlp stdout ---\n{yt_out}")
-    if yt_err: print_log(f"⚠️ --- yt-dlp stderr ---\n{yt_err}")
 
     if process.returncode != 0:
         raise Exception(f"yt-dlp Exit code {process.returncode}")
@@ -230,12 +218,13 @@ async def main():
 
                             if not download_success or not media_path:
                                 raise FileNotFoundError("Video/Audio file not found on disk!")
+
                             file_path = str(Path(media_path).resolve())
 
                             thumb_path = None
                             thumb_matches = list(job_dir.glob("*.jpg"))
                             if thumb_matches:
-                                thumb_matches.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+                                thumb_matches.sort(key=lambda p: (p.stat().st_mtime, p.stat().st_size), reverse=True)
                                 thumb_path = str(thumb_matches[0].resolve())
 
                             width, height, duration = 0, 0, 0
