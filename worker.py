@@ -53,7 +53,11 @@ BOT_SESSIONS = [
 ]
 
 COOKIE_FILE_PATH = Path("cookies.txt")
-ALLOWED_MEDIA_EXTS = {".mp4", ".mkv", ".webm", ".mov", ".m4v", ".mp3", ".m4a", ".aac", ".opus", ".ogg"}
+ALLOWED_MEDIA_EXTS = {
+    ".mp4", ".mkv", ".webm", ".mov", ".m4v",
+    ".mp3", ".m4a", ".aac", ".opus", ".ogg",
+}
+
 
 def ensure_cookie_file_from_env() -> None:
     yt_cookies = os.environ.get("YT_COOKIES")
@@ -61,22 +65,58 @@ def ensure_cookie_file_from_env() -> None:
         COOKIE_FILE_PATH.write_text(yt_cookies, encoding="utf-8")
         print_log("✅ Fresh cookies.txt generated on Railway from YT_COOKIES environment variable.")
 
+
 def normalize_quality(quality: str) -> str:
     q = (quality or "max").strip().lower()
-    aliases = {"1080p": "1080", "720p": "720", "480p": "480", "audio_only": "audio", "mp3": "audio"}
+    aliases = {
+        "1080p": "1080",
+        "720p": "720",
+        "480p": "480",
+        "audio_only": "audio",
+        "mp3": "audio",
+    }
     return aliases.get(q, q)
+
 
 def find_best_media_file(job_dir: Path) -> Optional[Path]:
     candidates = []
     for p in job_dir.rglob("*"):
-        if p.is_file() and p.suffix.lower() in ALLOWED_MEDIA_EXTS and not p.name.endswith(".part"):
-            candidates.append(p)
-    if not candidates: return None
+        if not p.is_file():
+            continue
+        suffix = p.suffix.lower()
+        if suffix not in ALLOWED_MEDIA_EXTS:
+            continue
+        if p.name.endswith(".part"):
+            continue
+        candidates.append(p)
+
+    if not candidates:
+        return None
+
     candidates.sort(key=lambda p: (p.stat().st_mtime, p.stat().st_size), reverse=True)
     return candidates[0].resolve()
 
+
+async def run_subprocess(cmd: list[str]) -> tuple[int, str, str]:
+    process = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        env=os.environ.copy() # 🚨 تضمین ارسال مسیرهای محیطی به yt-dlp
+    )
+    stdout, stderr = await process.communicate()
+    return (
+        process.returncode,
+        stdout.decode("utf-8", errors="ignore"),
+        stderr.decode("utf-8", errors="ignore"),
+    )
+
+
 def parse_vless_to_xray_json(vless_url):
-    if '#' in vless_url: vless_url = vless_url.split('#')[0]
+    """تبدیل اتوماتیک لینک VLESS به فایل کانفیگ استاندارد Xray"""
+    if '#' in vless_url:
+        vless_url = vless_url.split('#')[0]
+        
     parsed = urllib.parse.urlparse(vless_url)
     uuid_str = parsed.username
     address = parsed.hostname
@@ -91,9 +131,8 @@ def parse_vless_to_xray_json(vless_url):
     fp = qs.get('fp', ['chrome'])[0]
     alpn = qs.get('alpn', ['http/1.1'])[0]
     
-    # 🚨 روشن گذاشتن لاگ‌های Xray طبق دستور شما 🚨
     config_json = {
-        "log": {"loglevel": "info"}, 
+        "log": {"loglevel": "info"},
         "inbounds": [{"port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": {"udp": True}}],
         "outbounds": [{
             "protocol": "vless",
@@ -101,6 +140,7 @@ def parse_vless_to_xray_json(vless_url):
             "streamSettings": {"network": network, "security": security}
         }]
     }
+    
     if security == "tls":
         config_json["outbounds"][0]["streamSettings"]["tlsSettings"] = {"serverName": sni, "fingerprint": fp, "alpn": alpn.split(',') if ',' in alpn else [alpn]}
     if network == "ws":
@@ -109,11 +149,14 @@ def parse_vless_to_xray_json(vless_url):
     with open("config.json", "w") as f:
         json.dump(config_json, f, indent=2)
 
+
 async def ensure_xray():
+    """دانلود و اجرای موتور قدرتمند Xray-core در پس‌زمینه"""
     if not os.path.exists("xray"):
         print_log("⚙️ Downloading Xray-core...")
         urllib.request.urlretrieve("https://github.com/XTLS/Xray-core/releases/download/v1.8.9/Xray-linux-64.zip", "xray.zip")
-        with zipfile.ZipFile("xray.zip", 'r') as zip_ref: zip_ref.extract("xray", path=".")
+        with zipfile.ZipFile("xray.zip", 'r') as zip_ref:
+            zip_ref.extract("xray", path=".")
         os.chmod("xray", 0o755)
         os.remove("xray.zip")
 
@@ -129,21 +172,35 @@ async def ensure_xray():
     await asyncio.sleep(3)
     
     try:
-        proc = await asyncio.create_subprocess_exec("curl", "-s", "-x", "socks5h://127.0.0.1:10808", "https://icanhazip.com", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-        stdout, stderr = await proc.communicate()
+        proc = await asyncio.create_subprocess_exec("curl", "-v", "-x", "socks5h://127.0.0.1:10808", "https://icanhazip.com", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        stdout, stderr = await process.communicate()
         if proc.returncode == 0:
             print_log(f"✅ VLESS Connection OK! Shield IP: {stdout.decode().strip()}")
         else:
-            print_log(f"❌ VLESS Connection Failed! Error: {stderr.decode().strip()}")
+            print_log(f"❌ VLESS Connection Failed! Curl Error: {stderr.decode().strip()}")
     except Exception as e:
         print_log(f"❌ Curl exception: {e}")
 
+
 async def download_via_cobalt(url: str, job_dir: Path, quality: str = "max") -> str:
     print_log(f"🌟 Starting Cobalt API fallback for: {url} | Quality: {quality}")
-    api_urls = ["https://api.cobalt.tools/api/json", "https://cobalt.q0.pm/api/json", "https://api.cobalt.tools/"]
-    headers = {"Accept": "application/json", "Content-Type": "application/json", "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+    api_urls = [
+        "https://api.cobalt.tools/api/json",
+        "https://cobalt.q0.pm/api/json",
+        "https://api.cobalt.tools/",
+    ]
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+        ),
+    }
+
     payload = {"url": url, "vQuality": quality if quality != "audio" else "max"}
-    if quality == "audio": payload["isAudioOnly"] = True
+    if quality == "audio":
+        payload["isAudioOnly"] = True
 
     async with aiohttp.ClientSession() as session:
         media_url = None
@@ -153,24 +210,30 @@ async def download_via_cobalt(url: str, job_dir: Path, quality: str = "max") -> 
                     if resp.status in (200, 202):
                         data = await resp.json()
                         media_url = data.get("url")
-                        if media_url: break
-            except: continue
+                        if media_url:
+                            break
+            except Exception:
+                continue
 
-        if not media_url: raise Exception("❌ All Cobalt APIs failed.")
+        if not media_url:
+            raise Exception("❌ All Cobalt APIs failed.")
 
         ext = "mp3" if quality == "audio" else "mp4"
         file_path = job_dir / f"video.{ext}"
 
         async with session.get(media_url) as video_resp:
-            if video_resp.status != 200: raise Exception("Download failed from Cobalt URL.")
+            if video_resp.status != 200:
+                raise Exception("Download failed from Cobalt URL.")
             with open(file_path, "wb") as f:
                 while True:
                     chunk = await video_resp.content.read(2 * 1024 * 1024)
-                    if not chunk: break
+                    if not chunk:
+                        break
                     f.write(chunk)
 
     print_log("✅ Successfully downloaded via Cobalt!")
     return str(file_path.resolve())
+
 
 async def download_video_via_ytdlp(url: str, job_dir: Path, quality: str = "max") -> str:
     quality = normalize_quality(quality)
@@ -179,64 +242,86 @@ async def download_video_via_ytdlp(url: str, job_dir: Path, quality: str = "max"
     is_youtube = "youtube.com" in url.lower() or "youtu.be" in url.lower()
     absolute_job_dir = str(job_dir.resolve())
 
-    if quality == "1080": format_str, sort_args = "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best", ["-S", "height:1080"]
-    elif quality == "720": format_str, sort_args = "bestvideo[height<=720]+bestaudio/best[height<=720]/best", ["-S", "height:720"]
-    elif quality == "480": format_str, sort_args = "bestvideo[height<=480]+bestaudio/best[height<=480]/best", ["-S", "height:480"]
-    elif quality == "audio": format_str, sort_args = "bestaudio/best", []
-    else: format_str, sort_args = "bv*+ba/best", []
+    if quality == "1080":
+        format_str = "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best"
+        sort_args = ["-S", "height:1080"]
+    elif quality == "720":
+        format_str = "bestvideo[height<=720]+bestaudio/best[height<=720]/best"
+        sort_args = ["-S", "height:720"]
+    elif quality == "480":
+        format_str = "bestvideo[height<=480]+bestaudio/best[height<=480]/best"
+        sort_args = ["-S", "height:480"]
+    elif quality == "audio":
+        format_str = "bestaudio/best"
+        sort_args = []
+    else:
+        format_str = "bv*+ba/best"
+        sort_args = []
 
-    # 🚨 افزوده شدن فلگ -v برای لاگ‌های دقیق و حذف شدن فلگ --print برای خفه نشدن دانلودر 🚨
     cmd = [
-        "yt-dlp", "-v", 
-        "-f", format_str, *sort_args, "--no-playlist",
-        "--impersonate", "chrome", "--no-check-certificate", "--force-ipv4",
-        "--retries", "5", "--fragment-retries", "infinite",
-        "--write-info-json", "--write-thumbnail", "--convert-thumbnails", "jpg",
+        "yt-dlp",
+        "-f", format_str,
+        *sort_args,
+        "-v", # نمایش لاگ‌های دیباگ
+        "--no-playlist",
+        "--impersonate", "chrome",
+        "--no-check-certificate",
+        "--force-ipv4",
+        "--retries", "5",
+        "--fragment-retries", "infinite",
+        "--write-info-json",
+        "--write-thumbnail",
+        "--convert-thumbnails", "jpg",
         "-o", f"{absolute_job_dir}/video.%(ext)s",
     ]
 
-    if COOKIE_FILE_PATH.exists(): cmd.extend(["--cookies", str(COOKIE_FILE_PATH.resolve())])
+    if COOKIE_FILE_PATH.exists():
+        cmd.extend(["--cookies", str(COOKIE_FILE_PATH.resolve())])
+        print_log("🍪 cookies.txt injected into yt-dlp.")
 
-    if is_youtube and YTDLP_PROXY:
+    if quality == "audio":
+        cmd.extend([
+            "--extract-audio",
+            "--audio-format", "mp3",
+        ])
+    else:
+        cmd.extend([
+            "--merge-output-format", "mp4",
+            "--postprocessor-args", "ffmpeg:-movflags +faststart",
+        ])
+
+    if is_youtube:
         await ensure_xray()
         cmd.extend(["--proxy", YTDLP_PROXY])
-
-    if quality == "audio": cmd.extend(["--extract-audio", "--audio-format", "mp3"])
-    else: cmd.extend(["--merge-output-format", "mp4", "--postprocessor-args", "ffmpeg:-movflags +faststart"])
-
-    if is_youtube and YTDLP_YOUTUBE_ARGS:
-        cmd.extend(shlex.split(YTDLP_YOUTUBE_ARGS))
+        print_log(f"🧭 yt-dlp proxy enabled: {YTDLP_PROXY}")
+        if YTDLP_YOUTUBE_ARGS:
+            cmd.extend(shlex.split(YTDLP_YOUTUBE_ARGS))
+            print_log(f"🎛 Extra YouTube yt-dlp args enabled: {YTDLP_YOUTUBE_ARGS}")
 
     cmd.append(url)
     print_log(f"Executing: {' '.join(cmd)}")
 
-    # 🚨 تزریق os.environ برای پیدا کردن Deno در هر شرایطی 🚨
-    process = await asyncio.create_subprocess_exec(
-        *cmd, 
-        stdout=asyncio.subprocess.PIPE, 
-        stderr=asyncio.subprocess.PIPE,
-        env=os.environ.copy()
-    )
-    stdout, stderr = await process.communicate()
+    returncode, stdout, stderr = await run_subprocess(cmd)
 
-    yt_out = stdout.decode("utf-8", errors="ignore").strip()
-    yt_err = stderr.decode("utf-8", errors="ignore").strip()
+    if stdout:
+        print_log(f"📝 --- yt-dlp stdout ---\n{stdout.strip()}")
+    if stderr:
+        print_log(f"⚠️ --- yt-dlp stderr ---\n{stderr.strip()}")
 
-    # 🚨 چاپ حتمی خروجی‌ها (حتی اگر خالی باشند) برای ردیابی خطا 🚨
-    print_log(f"📝 --- yt-dlp stdout ---\n{yt_out if yt_out else 'EMPTY'}")
-    print_log(f"⚠️ --- yt-dlp stderr ---\n{yt_err if yt_err else 'EMPTY'}")
-
-    if process.returncode != 0:
-        # اگر دانلودر کرش کرد، ۲۰ خط آخر Xray را هم چاپ می‌کنیم تا ببینیم مشکل از پروکسی بوده یا یوتیوب
+    if returncode != 0:
         if os.path.exists("xray.log"):
             with open("xray.log", "r") as f:
                 logs = f.readlines()
                 print_log(f"☢️ --- XRAY LOGS (Last 20 lines) ---\n{''.join(logs[-20:])}")
-        raise Exception(f"yt-dlp Exit code {process.returncode}")
+        raise Exception(f"yt-dlp Exit code {returncode}")
 
+    # Fallback: scan the job directory for the newest valid media file.
     media_file = find_best_media_file(job_dir)
-    if not media_file: raise FileNotFoundError("Video/Audio file not found on disk!")
+    if not media_file:
+        raise FileNotFoundError("Video/Audio file not found on disk!")
+
     return str(media_file)
+
 
 async def main():
     print_log("✅ Railway Worker Ready! Polling Hugging Face for jobs...\n")
@@ -256,7 +341,10 @@ async def main():
                         await asyncio.sleep(2)
                         continue
 
-                    url, chat_id, message_id, status_msg_id = data["url"], int(data["chat_id"]), int(data["message_id"]), int(data["status_msg_id"])
+                    url = data["url"]
+                    chat_id = int(data["chat_id"])
+                    message_id = int(data["message_id"])
+                    status_msg_id = int(data["status_msg_id"])
                     quality = normalize_quality(data.get("quality", "max"))
 
                     job_id = str(uuid.uuid4())[:8]
@@ -285,12 +373,14 @@ async def main():
                         file_path = str(Path(media_path).resolve())
                         print_log(f"[{job_id}] 📦 Media file resolved: {file_path}")
 
+                        # Thumbnail
                         thumb_path = None
                         thumb_matches = list(job_dir.glob("*.jpg"))
                         if thumb_matches:
                             thumb_matches.sort(key=lambda p: (p.stat().st_mtime, p.stat().st_size), reverse=True)
                             thumb_path = str(thumb_matches[0].resolve())
 
+                        # Metadata
                         width, height, duration = 0, 0, 0
                         info_matches = list(job_dir.glob("*.info.json"))
                         if info_matches:
@@ -311,36 +401,60 @@ async def main():
                                     print_log(f"[{job_id}] 🚀 Uploading Progress: {percent}%")
 
                         is_audio = quality == "audio"
-                        upload_kwargs = {"chat_id": chat_id, "reply_to_message_id": message_id, "progress": progress_callback}
+                        upload_kwargs = {
+                            "chat_id": chat_id,
+                            "reply_to_message_id": message_id,
+                            "progress": progress_callback,
+                        }
 
                         if is_audio:
                             upload_kwargs["audio"] = file_path
                             upload_kwargs["caption"] = f"🎵 **دانلود موفق**\n⚡ کیفیت: {quality}"
-                            if thumb_path: upload_kwargs["thumb"] = thumb_path
-                            if duration: upload_kwargs["duration"] = duration
+                            if thumb_path:
+                                upload_kwargs["thumb"] = thumb_path
+                            if duration:
+                                upload_kwargs["duration"] = duration
                         else:
                             upload_kwargs["video"] = file_path
                             upload_kwargs["supports_streaming"] = True
                             upload_kwargs["caption"] = f"🎬 **دانلود موفق**\n⚡ کیفیت: {quality}"
-                            if thumb_path: upload_kwargs["thumb"] = thumb_path
-                            if width: upload_kwargs["width"] = width
-                            if height: upload_kwargs["height"] = height
-                            if duration: upload_kwargs["duration"] = duration
+                            if thumb_path:
+                                upload_kwargs["thumb"] = thumb_path
+                            if width:
+                                upload_kwargs["width"] = width
+                            if height:
+                                upload_kwargs["height"] = height
+                            if duration:
+                                upload_kwargs["duration"] = duration
 
                         upload_success = False
                         for attempt in range(3):
                             chosen_session = random.choice(BOT_SESSIONS)
-                            upload_app = Client(f"railway_{job_id}_{attempt}", api_id=API_ID, api_hash=API_HASH, session_string=chosen_session, in_memory=True)
+                            upload_app = Client(
+                                f"railway_{job_id}_{attempt}",
+                                api_id=API_ID,
+                                api_hash=API_HASH,
+                                session_string=chosen_session,
+                                in_memory=True,
+                            )
                             try:
                                 async with upload_app:
                                     print_log(f"[{job_id}] 🚀 Attempt {attempt + 1}: Uploading to Telegram...")
-                                    if is_audio: await upload_app.send_audio(**upload_kwargs)
-                                    else: await upload_app.send_video(**upload_kwargs)
-                                    try: await upload_app.delete_messages(chat_id, status_msg_id)
-                                    except: pass
+
+                                    if is_audio:
+                                        await upload_app.send_audio(**upload_kwargs)
+                                    else:
+                                        await upload_app.send_video(**upload_kwargs)
+
+                                    try:
+                                        await upload_app.delete_messages(chat_id, status_msg_id)
+                                    except Exception:
+                                        pass
+
                                 print_log(f"[{job_id}] 🎉 Job Completed!")
                                 upload_success = True
                                 break
+
                             except (AuthKeyDuplicated, AuthKeyInvalid):
                                 print_log(f"[{job_id}] ⚠️ Session collision detected. Retrying with another session...")
                                 continue
@@ -350,14 +464,20 @@ async def main():
                             except Exception as e:
                                 print_log(f"[{job_id}] ❌ Upload attempt {attempt + 1} failed: {e}")
 
-                        if not upload_success: print_log(f"[{job_id}] ❌ Upload failed after all retries.")
+                        if not upload_success:
+                            print_log(f"[{job_id}] ❌ Upload failed after all retries.")
 
-                    except Exception as e: print_log(f"[{job_id}] ❌ Error during processing: {e}")
-                    finally: shutil.rmtree(job_dir, ignore_errors=True)
-                else: await asyncio.sleep(5)
+                    except Exception as e:
+                        print_log(f"[{job_id}] ❌ Error during processing: {e}")
+
+                    finally:
+                        shutil.rmtree(job_dir, ignore_errors=True)
+                        print_log(f"[{job_id}] 🧹 Cleanup done. Ready for next job.\n")
+
             except Exception as e:
                 print_log(f"⚠️ Main loop error: {e}")
                 await asyncio.sleep(5)
+
 
 if __name__ == "__main__":
     asyncio.run(main())
