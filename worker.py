@@ -43,6 +43,7 @@ app = Client("vip_worker", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN
 COOKIE_FILE_PATH = Path(__file__).parent / "cookies.txt"
 
 def _setup_cookies():
+    """بررسی وجود کوکی در متغیرهای محیطی و ساخت فایل cookies.txt"""
     cookie_data = os.getenv("YT_COOKIES")
     if cookie_data and len(cookie_data.strip()) > 0:
         with open(COOKIE_FILE_PATH, "w", encoding="utf-8") as f:
@@ -107,11 +108,10 @@ async def start_xray_proxy():
         print_log(f"❌ Failed to start Xray: {e}")
 
 async def download_video_via_ytdlp(url, job_dir, quality="max"):
-    """اعمال داینامیک کیفیت برای یوتیوب و تیک‌تاک/اینستاگرام به صورت کاملاً تفکیک‌شده"""
+    """دانلود پرسرعت با شبیه‌سازها و سیستم Fallback دو مرحله‌ای (نینجا و تانک)"""
     is_youtube = "youtube.com" in url.lower() or "youtu.be" in url.lower()
     absolute_job_dir = str(job_dir.resolve()) 
     
-    # 🚨 اصلاح مهندسی: تفکیک منطق کیفیت برای یوتیوب (چند‌مکشه) و سایر سایت‌ها (تک‌مکشه) 🚨
     if is_youtube:
         format_str = "bv*+ba/b"
         if quality == "1080": format_str = "bv*[height<=1080]+ba/b"
@@ -220,7 +220,11 @@ async def download_via_cobalt(url, job_dir, quality="max"):
         return True
 
 async def main():
+    # ۱. راه‌اندازی خودکار پروکسی Xray در پس‌زمینه کانتینر
     await start_xray_proxy()
+    
+    # 🚨 ساخت کوکی‌ها در بدو شروع برنامه برای پاس کردن دقیق تست دیاگنوستیک
+    _setup_cookies()
 
     print_log("🔍 DIAGNOSTIC SYSTEM STARTING:")
     print(f"📁 Looking for cookies at: {COOKIE_FILE_PATH.resolve()}")
@@ -295,7 +299,7 @@ async def main():
                                         last_percent = percent
                                         print_log(f"[{job_id}] 🚀 Uploading Progress: {percent}%")
 
-                            # 🚨 بهینه‌سازی کپشن: اضافه کردن عنوان و کیفیت واقعی به کپشن تلگرام 🚨
+                            # ساخت پکیج آپلود
                             is_audio = quality == "audio"
                             quality_text = "صدا (MP3)" if is_audio else f"{quality}p"
                             upload_kwargs = {
