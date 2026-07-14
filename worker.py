@@ -7,6 +7,7 @@ import uuid
 import random
 import json
 import urllib.parse
+import re
 from pathlib import Path
 from pyrogram import Client
 from pyrogram.errors import FloodWait, AuthKeyDuplicated, AuthKeyInvalid
@@ -20,7 +21,7 @@ API_HASH = "24ce21160fcabd7e7c0de00a77b45ef3"
 HF_URL = "https://downloads89oouu-downloader.hf.space"
 WORKER_SECRET = "ali_vip_worker_2026"
 
-# لیست سشن‌ها (شامل آخرین سشن سالم که در کد خودتان اصلاح کردید)
+# لیست سشن‌ها (همان که خودتان اصلاح کردید)
 BOT_SESSIONS = [
     "BAJglPkAO0RCs_NW3uELJV95CRa17odKleHTrosLpwhRpmfX3N1K7SqQobP1kJvc6czR6E1z5j9TChl_X5_hHlAtx5RZH-xdFiOfJ_CrTMrTRKY2wzpe9dC2E9CitkBqwgZQDyHbiLZC-mrJPoXgDZ2tGeNwMMbWd3kHal3me4N8HloJcvwbR93nopWSZaO1VE9OGol8iczRSPovbqMcexgkquu7yb8EO2U6aeHZOqiExD8Vdibnj8W4QUQLA60bdhNhZGSC4EmdKXKCq32DfZHFtNNxC3RMmh3h1xJdS6Jf4W9IJaR32E5mS8pM-COP9N9pCoLWlw-2XjQiSu5KM9AQjGcs5wAAAAINTZ2uAQ",
     "BAJglPkAEIHq7qQmQFqUMINW5U6OolhKB8sxXd5mn0pLpwl6mB5fRnvM8UFmd2wf-7N0oDZ0-Rms2QlSr9JMkRoXAAGxKTp0tj0kK_mUobjFlOtS8hctWZgSwNjcsEDXprLU4f7CMQLvRskRzpPkShd1TxsEuzjtjg2sq9_Ed1hBQan1-BFBdAJ2wVNGSfg6zOAUBgV1XUU1_SAl7LywJJQUmSeQEB8dBX_-tmUqJVzpJI6iorwqPxYu8n5k2bPnXdtRB-vbZf-Oi2Cv-1wl-cvG_0vTVPcVUnTiIJjigDpXRz_Eu0lmVIiRhSNtxJvtSj_4u1z-Ze9qnQOCfTNQ3dRQQHYO1wAAAAINTZ2uAQ",
@@ -108,22 +109,29 @@ async def start_xray_proxy():
     except Exception as e:
         print_log(f"❌ Failed to start Xray: {e}")
 
+# تابع تبدیل کیفیت کاربر به عدد یا 'audio'
+def parse_quality(quality: str):
+    q = quality.strip().lower().replace("p", "")
+    if q in ("audio", "mp3", "sound", "music", "onlyaudio"):
+        return "audio"
+    match = re.search(r'(\d+)', q)
+    if match:
+        return int(match.group(1))
+    return None   # max quality
+
 async def download_video_via_ytdlp(url, job_dir, quality="max"):
     is_youtube = "youtube.com" in url.lower() or "youtu.be" in url.lower()
     absolute_job_dir = str(job_dir.resolve())
 
-    if is_youtube:
-        format_str = "bv*+ba/b"
-        if quality == "1080": format_str = "bv*[height<=1080]+ba/b"
-        elif quality == "720": format_str = "bv*[height<=720]+ba/b"
-        elif quality == "480": format_str = "bv*[height<=480]+ba/b"
-        elif quality == "audio": format_str = "ba/b"
+    res = parse_quality(quality)
+
+    if res == "audio":
+        format_str = "ba/b"
     else:
-        format_str = "b"
-        if quality == "1080": format_str = "best[height<=1080]/best"
-        elif quality == "720": format_str = "best[height<=720]/best"
-        elif quality == "480": format_str = "best[height<=480]/best"
-        elif quality == "audio": format_str = "ba/b"
+        if is_youtube:
+            format_str = f"bv*[height<={res}]+ba/b" if res else "bv*+ba/b"
+        else:
+            format_str = f"bestvideo[height<={res}]+bestaudio/best" if res else "b"
 
     base_cmd = [
         "yt-dlp", "--rm-cache-dir",
@@ -142,7 +150,7 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
     else:
         base_cmd.extend(["--merge-output-format", "mp4", "--postprocessor-args", "ffmpeg:-movflags +faststart"])
 
-    # فاز اول: نینجا (مستقیم، بدون پروکسی)
+    # فاز اول: نینجا (مستقیم)
     print_log("🥷 Trying Ninja Mode (Direct Connection + Android Client)...")
     ninja_cmd = list(base_cmd)
     if is_youtube:
