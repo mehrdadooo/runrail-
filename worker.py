@@ -109,29 +109,41 @@ async def start_xray_proxy():
     except Exception as e:
         print_log(f"❌ Failed to start Xray: {e}")
 
-# تابع تبدیل کیفیت کاربر به عدد یا 'audio'
+# تابع تبدیل کیفیت کاربر به عدد یا 'audio' (پشتیبانی از ورودی‌های متنوع)
 def parse_quality(quality: str):
+    """
+    مثال‌ها:
+    "720p" -> 720
+    "1080" -> 1080
+    "audio" -> "audio"
+    "mp3" -> "audio"
+    "max", "best", "" -> None (حداکثر کیفیت)
+    """
     q = quality.strip().lower().replace("p", "")
     if q in ("audio", "mp3", "sound", "music", "onlyaudio"):
         return "audio"
     match = re.search(r'(\d+)', q)
     if match:
         return int(match.group(1))
-    return None   # max quality
+    return None   # کیفیت نامشخص → max
 
 async def download_video_via_ytdlp(url, job_dir, quality="max"):
     is_youtube = "youtube.com" in url.lower() or "youtu.be" in url.lower()
     absolute_job_dir = str(job_dir.resolve())
 
     res = parse_quality(quality)
+    print_log(f"🎯 Parsed quality: {quality} -> res={res}")
 
+    # تعیین فرمت بر اساس res
     if res == "audio":
         format_str = "ba/b"
     else:
         if is_youtube:
+            # فرمت مخصوص یوتیوب
             format_str = f"bv*[height<={res}]+ba/b" if res else "bv*+ba/b"
         else:
-            format_str = f"bestvideo[height<={res}]+bestaudio/best" if res else "b"
+            # برای سایت‌های غیر یوتیوب: bestvideo+bestaudio یا best ساده
+            format_str = f"bestvideo[height<={res}]+bestaudio/best[height<={res}]" if res else "best"
 
     base_cmd = [
         "yt-dlp", "--rm-cache-dir",
@@ -145,12 +157,13 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
         "-o", f"{absolute_job_dir}/video.%(ext)s",
     ]
 
-    if quality == "audio":
+    # تنظیمات خروجی (mp3 یا mp4)
+    if quality == "audio":   # اگر کاربر audio خواسته بود
         base_cmd.extend(["--extract-audio", "--audio-format", "mp3"])
     else:
         base_cmd.extend(["--merge-output-format", "mp4", "--postprocessor-args", "ffmpeg:-movflags +faststart"])
 
-    # فاز اول: نینجا (مستقیم)
+    # 🚀 فاز اول: نینجا (مستقیم)
     print_log("🥷 Trying Ninja Mode (Direct Connection + Android Client)...")
     ninja_cmd = list(base_cmd)
     if is_youtube:
@@ -166,7 +179,7 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
 
     print_log(f"⚠️ Ninja Mode failed (Exit code {process.returncode}). Initiating Tank Mode fallback...")
 
-    # فاز دوم: تانک (پروکسی + کوکی + TV Client)
+    # 🛡️ فاز دوم: تانک (پروکسی + کوکی + TV Client)
     print_log("🛡️ Trying Tank Mode (VLESS Proxy + Cookies + TV Client)...")
     _setup_cookies()
 
@@ -256,6 +269,9 @@ async def main():
 
                         url, chat_id, message_id, status_msg_id = data["url"], int(data["chat_id"]), int(data["message_id"]), int(data["status_msg_id"])
                         quality = data.get("quality", "max")
+
+                        # 🔥 لاگ عیب‌یابی – بررسی مقدار واقعی دریافتی از HF
+                        print_log(f"🔥 QUALITY FROM HF = {quality}")
 
                         job_id = str(uuid.uuid4())[:8]
                         job_dir = Path(f"jobs/{job_id}")
