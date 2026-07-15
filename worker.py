@@ -154,35 +154,14 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
     else:
         base_cmd.extend(["--merge-output-format", "mp4", "--postprocessor-args", "ffmpeg:-movflags +faststart"])
 
-    # لیست فرمت‌های موجود
-    list_cmd = ["yt-dlp", "-F", url]
-    print_log("Listing formats (yt-dlp -F)...")
-    list_proc = await asyncio.create_subprocess_exec(
-        *list_cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE
-    )
-    list_stdout, list_stderr = await list_proc.communicate()
-    print_log("------ LIST STDOUT ------")
-    print_log(list_stdout.decode(errors="ignore"))
-    print_log("------ LIST STDERR ------")
-    print_log(list_stderr.decode(errors="ignore"))
-
-    # فاز اول: نینجا
+    # 🚀 فاز اول: نینجا (مستقیم)
     print_log("🥷 Trying Ninja Mode (Direct Connection + Android Client)...")
     ninja_cmd = list(base_cmd)
     if is_youtube:
         ninja_cmd.extend(["--extractor-args", "youtube:player_client=android", "--impersonate", "chrome"])
     ninja_cmd.append(url)
 
-    print_log("Running Ninja command:")
-    print_log(" ".join(ninja_cmd))
-
-    process = await asyncio.create_subprocess_exec(
-        *ninja_cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE
-    )
+    process = await asyncio.create_subprocess_exec(*ninja_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     stdout, stderr = await process.communicate()
 
     print_log(f"Ninja Exit code = {process.returncode}")
@@ -195,9 +174,9 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
         print_log("✅ Ninja Mode Success!")
         return True
 
-    print_log(f"⚠️ Ninja Mode failed. Initiating Tank Mode fallback...")
+    print_log(f"⚠️ Ninja Mode failed (Exit code {process.returncode}). Initiating Tank Mode fallback...")
 
-    # فاز دوم: تانک
+    # 🛡️ فاز دوم: تانک (پروکسی + کوکی + TV Client)
     print_log("🛡️ Trying Tank Mode (VLESS Proxy + Cookies + TV Client)...")
     _setup_cookies()
 
@@ -211,14 +190,7 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
         tank_cmd.extend(["--extractor-args", "youtube:player_client=tv", "--impersonate", "chrome", "--force-ipv4"])
     tank_cmd.append(url)
 
-    print_log("Running Tank command:")
-    print_log(" ".join(tank_cmd))
-
-    process = await asyncio.create_subprocess_exec(
-        *tank_cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE
-    )
+    process = await asyncio.create_subprocess_exec(*tank_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     stdout, stderr = await process.communicate()
 
     print_log(f"Tank Exit code = {process.returncode}")
@@ -348,7 +320,7 @@ async def main():
                                         duration = info.get('duration', 0)
                                         title = info.get('title', 'Untitled')
 
-                                        # 🔍 لاگ‌های تشخیصی دقیق
+                                        # 🎯 سه لاگ کلیدی برای تشخیص فرمت واقعی
                                         format_id = info.get('format_id', 'unknown')
                                         print_log(f"🎯 FORMAT ID = {format_id}")
                                         print_log(f"🎯 HEIGHT    = {height}")
