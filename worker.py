@@ -154,14 +154,36 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
     else:
         base_cmd.extend(["--merge-output-format", "mp4", "--postprocessor-args", "ffmpeg:-movflags +faststart"])
 
-    # 🚀 فاز اول: نینجا (مستقیم)
-    print_log("🥷 Trying Ninja Mode (Direct Connection + Android Client)...")
+    # تنظیمات مشترک پروکسی و کوکی
+    use_proxy = os.getenv("VLESS_LINK") is not None
+    _setup_cookies()
+    has_cookies = COOKIE_FILE_PATH.exists()
+
+    common_args = []
+    if use_proxy:
+        common_args.extend(["--proxy", "socks5h://127.0.0.1:10808"])
+    if has_cookies:
+        common_args.extend(["--cookies", str(COOKIE_FILE_PATH.resolve())])
+
+    # ========== فاز اول: نینجا (پروکسی + کلاینت‌های web و ios) ==========
+    print_log("🥷 Trying Ninja Mode (Proxy + Web/iOS Client)...")
     ninja_cmd = list(base_cmd)
+    ninja_cmd.extend(common_args)
     if is_youtube:
-        ninja_cmd.extend(["--extractor-args", "youtube:player_client=android", "--impersonate", "chrome"])
+        ninja_cmd.extend([
+            "--extractor-args", "youtube:player_client=web,ios;formats=missing_pot",
+            "--impersonate", "chrome"
+        ])
     ninja_cmd.append(url)
 
-    process = await asyncio.create_subprocess_exec(*ninja_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+    print_log("Running Ninja command:")
+    print_log(" ".join(ninja_cmd))
+
+    process = await asyncio.create_subprocess_exec(
+        *ninja_cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
     stdout, stderr = await process.communicate()
 
     print_log(f"Ninja Exit code = {process.returncode}")
@@ -174,23 +196,28 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
         print_log("✅ Ninja Mode Success!")
         return True
 
-    print_log(f"⚠️ Ninja Mode failed (Exit code {process.returncode}). Initiating Tank Mode fallback...")
+    print_log(f"⚠️ Ninja Mode failed. Initiating Tank Mode fallback...")
 
-    # 🛡️ فاز دوم: تانک (پروکسی + کوکی + TV Client)
-    print_log("🛡️ Trying Tank Mode (VLESS Proxy + Cookies + TV Client)...")
-    _setup_cookies()
-
+    # ========== فاز دوم: تانک (پروکسی + کوکی + tv/web) ==========
+    print_log("🛡️ Trying Tank Mode (Proxy + Cookies + TV/Web Client)...")
     tank_cmd = list(base_cmd)
-    if os.getenv("VLESS_LINK"):
-        tank_cmd.extend(["--proxy", "socks5h://127.0.0.1:10808"])
-    if COOKIE_FILE_PATH.exists():
-        tank_cmd.extend(["--cookies", str(COOKIE_FILE_PATH.resolve())])
-
+    tank_cmd.extend(common_args)
     if is_youtube:
-        tank_cmd.extend(["--extractor-args", "youtube:player_client=tv", "--impersonate", "chrome", "--force-ipv4"])
+        tank_cmd.extend([
+            "--extractor-args", "youtube:player_client=tv,web;formats=missing_pot",
+            "--impersonate", "chrome",
+            "--force-ipv4"
+        ])
     tank_cmd.append(url)
 
-    process = await asyncio.create_subprocess_exec(*tank_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+    print_log("Running Tank command:")
+    print_log(" ".join(tank_cmd))
+
+    process = await asyncio.create_subprocess_exec(
+        *tank_cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
     stdout, stderr = await process.communicate()
 
     print_log(f"Tank Exit code = {process.returncode}")
@@ -320,7 +347,7 @@ async def main():
                                         duration = info.get('duration', 0)
                                         title = info.get('title', 'Untitled')
 
-                                        # 🎯 سه لاگ کلیدی برای تشخیص فرمت واقعی
+                                        # لاگ‌های تشخیصی برای فرمت واقعی
                                         format_id = info.get('format_id', 'unknown')
                                         print_log(f"🎯 FORMAT ID = {format_id}")
                                         print_log(f"🎯 HEIGHT    = {height}")
