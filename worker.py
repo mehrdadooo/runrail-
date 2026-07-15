@@ -21,7 +21,7 @@ API_HASH = "24ce21160fcabd7e7c0de00a77b45ef3"
 HF_URL = "https://downloads89oouu-downloader.hf.space"
 WORKER_SECRET = "ali_vip_worker_2026"
 
-# لیست سشن‌ها
+# لیست سشن‌ها (همان که خودتان اصلاح کردید)
 BOT_SESSIONS = [
     "BAJglPkAO0RCs_NW3uELJV95CRa17odKleHTrosLpwhRpmfX3N1K7SqQobP1kJvc6czR6E1z5j9TChl_X5_hHlAtx5RZH-xdFiOfJ_CrTMrTRKY2wzpe9dC2E9CitkBqwgZQDyHbiLZC-mrJPoXgDZ2tGeNwMMbWd3kHal3me4N8HloJcvwbR93nopWSZaO1VE9OGol8iczRSPovbqMcexgkquu7yb8EO2U6aeHZOqiExD8Vdibnj8W4QUQLA60bdhNhZGSC4EmdKXKCq32DfZHFtNNxC3RMmh3h1xJdS6Jf4W9IJaR32E5mS8pM-COP9N9pCoLWlw-2XjQiSu5KM9AQjGcs5wAAAAINTZ2uAQ",
     "BAJglPkAEIHq7qQmQFqUMINW5U6OolhKB8sxXd5mn0pLpwl6mB5fRnvM8UFmd2wf-7N0oDZ0-Rms2QlSr9JMkRoXAAGxKTp0tj0kK_mUobjFlOtS8hctWZgSwNjcsEDXprLU4f7CMQLvRskRzpPkShd1TxsEuzjtjg2sq9_Ed1hBQan1-BFBdAJ2wVNGSfg6zOAUBgV1XUU1_SAl7LywJJQUmSeQEB8dBX_-tmUqJVzpJI6iorwqPxYu8n5k2bPnXdtRB-vbZf-Oi2Cv-1wl-cvG_0vTVPcVUnTiIJjigDpXRz_Eu0lmVIiRhSNtxJvtSj_4u1z-Ze9qnQOCfTNQ3dRQQHYO1wAAAAINTZ2uAQ",
@@ -109,6 +109,7 @@ async def start_xray_proxy():
     except Exception as e:
         print_log(f"❌ Failed to start Xray: {e}")
 
+# تابع تبدیل کیفیت کاربر به عدد یا 'audio'
 def parse_quality(quality: str):
     q = quality.strip().lower().replace("p", "")
     if q in ("audio", "mp3", "sound", "music", "onlyaudio"):
@@ -116,18 +117,13 @@ def parse_quality(quality: str):
     match = re.search(r'(\d+)', q)
     if match:
         return int(match.group(1))
-    return None
+    return None   # max quality
 
 async def download_video_via_ytdlp(url, job_dir, quality="max"):
     is_youtube = "youtube.com" in url.lower() or "youtu.be" in url.lower()
     absolute_job_dir = str(job_dir.resolve())
 
     res = parse_quality(quality)
-
-    # لاگ‌های ۱ و ۲: کیفیت و خروجی تجزیه
-    print_log("=" * 60)
-    print_log(f"Original quality = {quality}")
-    print_log(f"Parsed quality   = {res}")
 
     if res == "audio":
         format_str = "ba/b"
@@ -136,8 +132,6 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
             format_str = f"bv*[height<={res}]+ba/b" if res else "bv*+ba/b"
         else:
             format_str = f"bestvideo[height<={res}]+bestaudio/best" if res else "b"
-
-    print_log(f"Format string = {format_str}")
 
     base_cmd = [
         "yt-dlp", "--rm-cache-dir",
@@ -156,52 +150,23 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
     else:
         base_cmd.extend(["--merge-output-format", "mp4", "--postprocessor-args", "ffmpeg:-movflags +faststart"])
 
-    # ۷. نمایش فرمت‌های موجود با yt-dlp -F
-    list_cmd = ["yt-dlp", "-F", url]
-    print_log("Listing formats...")
-    list_proc = await asyncio.create_subprocess_exec(
-        *list_cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE
-    )
-    list_stdout, list_stderr = await list_proc.communicate()
-    print_log("------ LIST STDOUT ------")
-    print_log(list_stdout.decode(errors="ignore"))
-    print_log("------ LIST STDERR ------")
-    print_log(list_stderr.decode(errors="ignore"))
-
-    # فاز اول: نینجا
+    # فاز اول: نینجا (مستقیم)
     print_log("🥷 Trying Ninja Mode (Direct Connection + Android Client)...")
     ninja_cmd = list(base_cmd)
     if is_youtube:
         ninja_cmd.extend(["--extractor-args", "youtube:player_client=android", "--impersonate", "chrome"])
     ninja_cmd.append(url)
 
-    # لاگ ۳: دستور کامل
-    print_log("Running Ninja command:")
-    print_log(" ".join(ninja_cmd))
-
-    process = await asyncio.create_subprocess_exec(
-        *ninja_cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE
-    )
+    process = await asyncio.create_subprocess_exec(*ninja_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     stdout, stderr = await process.communicate()
-
-    # لاگ ۴: خروجی و خطا
-    print_log(f"Ninja Exit code = {process.returncode}")
-    print_log("------ NINJA STDOUT ------")
-    print_log(stdout.decode(errors="ignore"))
-    print_log("------ NINJA STDERR ------")
-    print_log(stderr.decode(errors="ignore"))
 
     if process.returncode == 0:
         print_log("✅ Ninja Mode Success!")
         return True
 
-    print_log(f"⚠️ Ninja Mode failed. Initiating Tank Mode fallback...")
+    print_log(f"⚠️ Ninja Mode failed (Exit code {process.returncode}). Initiating Tank Mode fallback...")
 
-    # فاز دوم: تانک
+    # فاز دوم: تانک (پروکسی + کوکی + TV Client)
     print_log("🛡️ Trying Tank Mode (VLESS Proxy + Cookies + TV Client)...")
     _setup_cookies()
 
@@ -215,21 +180,8 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
         tank_cmd.extend(["--extractor-args", "youtube:player_client=tv", "--impersonate", "chrome", "--force-ipv4"])
     tank_cmd.append(url)
 
-    print_log("Running Tank command:")
-    print_log(" ".join(tank_cmd))
-
-    process = await asyncio.create_subprocess_exec(
-        *tank_cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE
-    )
+    process = await asyncio.create_subprocess_exec(*tank_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     stdout, stderr = await process.communicate()
-
-    print_log(f"Tank Exit code = {process.returncode}")
-    print_log("------ TANK STDOUT ------")
-    print_log(stdout.decode(errors="ignore"))
-    print_log("------ TANK STDERR ------")
-    print_log(stderr.decode(errors="ignore"))
 
     if process.returncode == 0:
         print_log("✅ Tank Mode Success!")
@@ -305,9 +257,6 @@ async def main():
                         url, chat_id, message_id, status_msg_id = data["url"], int(data["chat_id"]), int(data["message_id"]), int(data["status_msg_id"])
                         quality = data.get("quality", "max")
 
-                        # 🔥 لاگ کیفیت دریافتی از HF
-                        print_log(f"🔥 QUALITY FROM HF = {quality}")
-
                         job_id = str(uuid.uuid4())[:8]
                         job_dir = Path(f"jobs/{job_id}")
                         job_dir.mkdir(parents=True, exist_ok=True)
@@ -326,27 +275,22 @@ async def main():
                                 await download_via_cobalt(url, job_dir, quality)
                                 download_success = True
 
-                            # لاگ ۵: فایل‌های داخل job_dir
-                            print_log("Files inside job directory:")
-                            for f in job_dir.iterdir():
-                                print_log(f" -> {f.name}")
-
                             # یافتن فایل رسانه
                             matches = list(job_dir.glob("video.mp4")) or list(job_dir.glob("video.mp3")) or [m for m in job_dir.glob("video.*") if m.suffix.lower() not in ['.jpg', '.json']]
                             if not matches or not download_success:
                                 raise FileNotFoundError("Video/Audio file not found on disk!")
                             file_path = str(matches[0].resolve())
 
+                            # کاور
                             thumb_path = None
                             thumb_matches = list(job_dir.glob("*.jpg"))
                             if thumb_matches:
                                 thumb_path = str(thumb_matches[0].resolve())
 
+                            # متادیتا + عنوان
                             width, height, duration = 0, 0, 0
                             title = "Unknown"
                             info_matches = list(job_dir.glob("*.info.json"))
-                            # لاگ ۶: فایل‌های info.json
-                            print_log(f"Info files = {info_matches}")
                             if info_matches:
                                 try:
                                     with open(info_matches[0], 'r', encoding='utf-8') as f:
@@ -367,6 +311,7 @@ async def main():
                                         last_percent = percent
                                         print_log(f"[{job_id}] 🚀 Uploading Progress: {percent}%")
 
+                            # کپشن با عنوان
                             is_audio = quality == "audio"
                             quality_text = "صدا (MP3)" if is_audio else f"{quality}p"
                             caption = f"🎬 **{title}**\n\n⚙️ کیفیت: `{quality_text}`\n⚡ توسط سرور پرسرعت"
@@ -389,7 +334,7 @@ async def main():
                                 if height: upload_kwargs["height"] = height
                                 if duration: upload_kwargs["duration"] = int(duration)
 
-                            # آپلود با مدیریت سشن‌ها
+                            # آپلود با مدیریت خطای سشن‌ها
                             upload_success = False
                             attempt = 0
                             used_sessions = set()
