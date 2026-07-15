@@ -21,6 +21,7 @@ API_HASH = "24ce21160fcabd7e7c0de00a77b45ef3"
 HF_URL = "https://downloads89oouu-downloader.hf.space"
 WORKER_SECRET = "ali_vip_worker_2026"
 
+# لیست سشن‌ها (همان که خودتان اصلاح کردید)
 BOT_SESSIONS = [
     "BAJglPkAO0RCs_NW3uELJV95CRa17odKleHTrosLpwhRpmfX3N1K7SqQobP1kJvc6czR6E1z5j9TChl_X5_hHlAtx5RZH-xdFiOfJ_CrTMrTRKY2wzpe9dC2E9CitkBqwgZQDyHbiLZC-mrJPoXgDZ2tGeNwMMbWd3kHal3me4N8HloJcvwbR93nopWSZaO1VE9OGol8iczRSPovbqMcexgkquu7yb8EO2U6aeHZOqiExD8Vdibnj8W4QUQLA60bdhNhZGSC4EmdKXKCq32DfZHFtNNxC3RMmh3h1xJdS6Jf4W9IJaR32E5mS8pM-COP9N9pCoLWlw-2XjQiSu5KM9AQjGcs5wAAAAINTZ2uAQ",
     "BAJglPkAEIHq7qQmQFqUMINW5U6OolhKB8sxXd5mn0pLpwl6mB5fRnvM8UFmd2wf-7N0oDZ0-Rms2QlSr9JMkRoXAAGxKTp0tj0kK_mUobjFlOtS8hctWZgSwNjcsEDXprLU4f7CMQLvRskRzpPkShd1TxsEuzjtjg2sq9_Ed1hBQan1-BFBdAJ2wVNGSfg6zOAUBgV1XUU1_SAl7LywJJQUmSeQEB8dBX_-tmUqJVzpJI6iorwqPxYu8n5k2bPnXdtRB-vbZf-Oi2Cv-1wl-cvG_0vTVPcVUnTiIJjigDpXRz_Eu0lmVIiRhSNtxJvtSj_4u1z-Ze9qnQOCfTNQ3dRQQHYO1wAAAAINTZ2uAQ",
@@ -154,26 +155,25 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
     else:
         base_cmd.extend(["--merge-output-format", "mp4", "--postprocessor-args", "ffmpeg:-movflags +faststart"])
 
-    # تنظیمات مشترک پروکسی و کوکی
-    use_proxy = os.getenv("VLESS_LINK") is not None
-    _setup_cookies()
-    has_cookies = COOKIE_FILE_PATH.exists()
+    # لیست فرمت‌های موجود
+    list_cmd = ["yt-dlp", "-F", url]
+    print_log("Listing formats (yt-dlp -F)...")
+    list_proc = await asyncio.create_subprocess_exec(
+        *list_cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
+    list_stdout, list_stderr = await list_proc.communicate()
+    print_log("------ LIST STDOUT ------")
+    print_log(list_stdout.decode(errors="ignore"))
+    print_log("------ LIST STDERR ------")
+    print_log(list_stderr.decode(errors="ignore"))
 
-    common_args = []
-    if use_proxy:
-        common_args.extend(["--proxy", "socks5h://127.0.0.1:10808"])
-    if has_cookies:
-        common_args.extend(["--cookies", str(COOKIE_FILE_PATH.resolve())])
-
-    # ========== فاز اول: نینجا (پروکسی + کلاینت‌های web و ios) ==========
-    print_log("🥷 Trying Ninja Mode (Proxy + Web/iOS Client)...")
+    # فاز اول: نینجا
+    print_log("🥷 Trying Ninja Mode (Direct Connection + Android Client)...")
     ninja_cmd = list(base_cmd)
-    ninja_cmd.extend(common_args)
     if is_youtube:
-        ninja_cmd.extend([
-            "--extractor-args", "youtube:player_client=web,ios;formats=missing_pot",
-            "--impersonate", "chrome"
-        ])
+        ninja_cmd.extend(["--extractor-args", "youtube:player_client=android", "--impersonate", "chrome"])
     ninja_cmd.append(url)
 
     print_log("Running Ninja command:")
@@ -198,16 +198,18 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
 
     print_log(f"⚠️ Ninja Mode failed. Initiating Tank Mode fallback...")
 
-    # ========== فاز دوم: تانک (پروکسی + کوکی + tv/web) ==========
-    print_log("🛡️ Trying Tank Mode (Proxy + Cookies + TV/Web Client)...")
+    # فاز دوم: تانک
+    print_log("🛡️ Trying Tank Mode (VLESS Proxy + Cookies + TV Client)...")
+    _setup_cookies()
+
     tank_cmd = list(base_cmd)
-    tank_cmd.extend(common_args)
+    if os.getenv("VLESS_LINK"):
+        tank_cmd.extend(["--proxy", "socks5h://127.0.0.1:10808"])
+    if COOKIE_FILE_PATH.exists():
+        tank_cmd.extend(["--cookies", str(COOKIE_FILE_PATH.resolve())])
+
     if is_youtube:
-        tank_cmd.extend([
-            "--extractor-args", "youtube:player_client=tv,web;formats=missing_pot",
-            "--impersonate", "chrome",
-            "--force-ipv4"
-        ])
+        tank_cmd.extend(["--extractor-args", "youtube:player_client=tv", "--impersonate", "chrome", "--force-ipv4"])
     tank_cmd.append(url)
 
     print_log("Running Tank command:")
@@ -346,14 +348,11 @@ async def main():
                                         height = info.get('height', 0)
                                         duration = info.get('duration', 0)
                                         title = info.get('title', 'Untitled')
-
-                                        # لاگ‌های تشخیصی برای فرمت واقعی
-                                        format_id = info.get('format_id', 'unknown')
-                                        print_log(f"🎯 FORMAT ID = {format_id}")
-                                        print_log(f"🎯 HEIGHT    = {height}")
-                                        print_log(f"🎯 WIDTH     = {width}")
                                 except Exception:
                                     pass
+
+                            # 🎥 کلید حل معما – رزولوشن واقعی فایل دانلودشده
+                            print_log(f"🎥 Downloaded resolution: {width}x{height}")
 
                             last_percent = -1
                             async def progress_callback(current, total):
