@@ -109,7 +109,7 @@ async def start_xray_proxy():
     except Exception as e:
         print_log(f"❌ Failed to start Xray: {e}")
 
-# تابع تبدیل کیفیت کاربر به عدد یا 'audio'
+# تابع تبدیل کیفیت کاربر به عدد یا 'audio' (کاملاً بدون تغییر)
 def parse_quality(quality: str):
     q = quality.strip().lower().replace("p", "")
     if q in ("audio", "mp3", "sound", "music", "onlyaudio"):
@@ -125,6 +125,11 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
 
     res = parse_quality(quality)
 
+    # 📊 لاگ ۱: کیفیت اصلی و تجزیه‌شده
+    print_log("=" * 60)
+    print_log(f"Original quality = {quality}")
+    print_log(f"Parsed quality   = {res}")
+
     if res == "audio":
         format_str = "ba/b"
     else:
@@ -132,6 +137,9 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
             format_str = f"bv*[height<={res}]+ba/b" if res else "bv*+ba/b"
         else:
             format_str = f"bestvideo[height<={res}]+bestaudio/best" if res else "b"
+
+    # 📊 لاگ ۲: رشته فرمت نهایی
+    print_log(f"Format string = {format_str}")
 
     base_cmd = [
         "yt-dlp", "--rm-cache-dir",
@@ -150,15 +158,40 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
     else:
         base_cmd.extend(["--merge-output-format", "mp4", "--postprocessor-args", "ffmpeg:-movflags +faststart"])
 
-    # فاز اول: نینجا (مستقیم)
+    # 📊 لاگ ۷ (اضافه‌شده): نمایش فرمت‌های موجود با yt-dlp -F
+    list_cmd = ["yt-dlp", "-F", url]
+    print_log("Listing formats (yt-dlp -F)...")
+    list_proc = await asyncio.create_subprocess_exec(
+        *list_cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
+    list_stdout, list_stderr = await list_proc.communicate()
+    print_log("------ LIST STDOUT ------")
+    print_log(list_stdout.decode(errors="ignore"))
+    print_log("------ LIST STDERR ------")
+    print_log(list_stderr.decode(errors="ignore"))
+
+    # 🚀 فاز اول: نینجا (مستقیم) – دستور و اجرا کاملاً مشابه قبل
     print_log("🥷 Trying Ninja Mode (Direct Connection + Android Client)...")
     ninja_cmd = list(base_cmd)
     if is_youtube:
         ninja_cmd.extend(["--extractor-args", "youtube:player_client=android", "--impersonate", "chrome"])
     ninja_cmd.append(url)
 
+    # 📊 لاگ ۳: دستور کامل نینجا
+    print_log("Running Ninja command:")
+    print_log(" ".join(ninja_cmd))
+
     process = await asyncio.create_subprocess_exec(*ninja_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     stdout, stderr = await process.communicate()
+
+    # 📊 لاگ ۴: خروجی و خطای نینجا
+    print_log(f"Ninja Exit code = {process.returncode}")
+    print_log("------ NINJA STDOUT ------")
+    print_log(stdout.decode(errors="ignore"))
+    print_log("------ NINJA STDERR ------")
+    print_log(stderr.decode(errors="ignore"))
 
     if process.returncode == 0:
         print_log("✅ Ninja Mode Success!")
@@ -166,7 +199,7 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
 
     print_log(f"⚠️ Ninja Mode failed (Exit code {process.returncode}). Initiating Tank Mode fallback...")
 
-    # فاز دوم: تانک (پروکسی + کوکی + TV Client)
+    # 🛡️ فاز دوم: تانک (پروکسی + کوکی + TV Client) – بدون تغییر
     print_log("🛡️ Trying Tank Mode (VLESS Proxy + Cookies + TV Client)...")
     _setup_cookies()
 
@@ -180,8 +213,19 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
         tank_cmd.extend(["--extractor-args", "youtube:player_client=tv", "--impersonate", "chrome", "--force-ipv4"])
     tank_cmd.append(url)
 
+    # 📊 لاگ ۳ (برای تانک): دستور کامل
+    print_log("Running Tank command:")
+    print_log(" ".join(tank_cmd))
+
     process = await asyncio.create_subprocess_exec(*tank_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     stdout, stderr = await process.communicate()
+
+    # 📊 لاگ ۴ (برای تانک): خروجی و خطا
+    print_log(f"Tank Exit code = {process.returncode}")
+    print_log("------ TANK STDOUT ------")
+    print_log(stdout.decode(errors="ignore"))
+    print_log("------ TANK STDERR ------")
+    print_log(stderr.decode(errors="ignore"))
 
     if process.returncode == 0:
         print_log("✅ Tank Mode Success!")
@@ -257,6 +301,9 @@ async def main():
                         url, chat_id, message_id, status_msg_id = data["url"], int(data["chat_id"]), int(data["message_id"]), int(data["status_msg_id"])
                         quality = data.get("quality", "max")
 
+                        # 🔥 لاگ کیفیت دریافتی از HF (از قبل موجود بود)
+                        print_log(f"🔥 QUALITY FROM HF = {quality}")
+
                         job_id = str(uuid.uuid4())[:8]
                         job_dir = Path(f"jobs/{job_id}")
                         job_dir.mkdir(parents=True, exist_ok=True)
@@ -275,6 +322,11 @@ async def main():
                                 await download_via_cobalt(url, job_dir, quality)
                                 download_success = True
 
+                            # 📊 لاگ ۵: فایل‌های موجود در job_dir
+                            print_log("Files inside job directory:")
+                            for f in job_dir.iterdir():
+                                print_log(f" -> {f.name}")
+
                             # یافتن فایل رسانه
                             matches = list(job_dir.glob("video.mp4")) or list(job_dir.glob("video.mp3")) or [m for m in job_dir.glob("video.*") if m.suffix.lower() not in ['.jpg', '.json']]
                             if not matches or not download_success:
@@ -291,6 +343,10 @@ async def main():
                             width, height, duration = 0, 0, 0
                             title = "Unknown"
                             info_matches = list(job_dir.glob("*.info.json"))
+
+                            # 📊 لاگ ۶: فایل‌های info.json
+                            print_log(f"Info files = {info_matches}")
+
                             if info_matches:
                                 try:
                                     with open(info_matches[0], 'r', encoding='utf-8') as f:
