@@ -33,10 +33,10 @@ else:
         "BAJglPkAEIHq7qQmQFqUMINW5U6OolhKB8sxXd5mn0pLpwl6mB5fRnvM8UFmd2wf-7N0oDZ0-Rms2QlSr9JMkRoXAAGxKTp0tj0kK_mUobjFlOtS8hctWZgSwNjcsEDXprLU4f7CMQLvRskRzpPkShd1TxsEuzjtjg2sq9_Ed1hBQan1-BFBdAJ2wVNGSfg6zOAUBgV1XUU1_SAl7LywJJQUmSeQEB8dBX_-tmUqJVzpJI6iorwqPxYu8n5k2bPnXdtRB-vbZf-Oi2Cv-1wl-cvG_0vTVPcVUnTiIJjigDpXRz_Eu0lmVIiRhSNtxJvtSj_4u1z-Ze9qnQOCfTNQ3dRQQHYO1wAAAAINTZ2uAQ",
         "BAJglPkAq5Ab9cqjvp2qvWWxpgmw7wOq2W6wlOC6EUCD9QOu5mAtsAyr7CaY9eOTUCpjB1yuYvE9UyQy6EpZdh-AupsQ6wwQPGjxe6b6wkv7gVm8z0vdO5f54I_dh8erfAY1Lz-186zlCumDcV63EZwm2MO27qKdzbjOocILR4SKECgrvxk1bEqfLHlp5D8nFyTBZeAko4iPWhh8O6d9WMdLQDodXMG-dJCNwQzqE6Vyui1BRNxFIXKoz1XGnZ6iPPuf3eKJH-ayZ3FHJJUei0kYO4MKl_gy3Uv1WFzvTEuvTZtbjyKFKMSp4YH39_OdTdUwXbHca-lQhGwukSztM10quL9_xAAAAAINTZ2uAQ",
         "BAJglPkAag83pxlJ7YpaNRtvcskvrUSiHrWl0HfkNboMFQuljSaFf6rieC84VjbF5aq9Pxrqrplls6jlfm7f4HC9D7JWa7bKqH9WjSplofQTsSbRYmkvQbUk2lmC7obeze9Unblo0VFc9kXXYG5No0hojvU4DCWTH3ZsY8uveLe8hVTSvlHCQiPcU0cJfnTZT9E2yK__EnlPojvEyavyi1h0pFzGWAybMlegSoHnLcX9VGU08qiRgkKOYdF3i5CV3heSijJiFlwI35wu-XYnqKm60zK2lMTJr2lfid6ssTcdy90brCa9C1BzAcnSGPQMy-GaoZo0ESsHEgGR4R7Z9smYtDFSTgAAAAINTZ2uAQ",
-        "BAJglPkAnFvYFhSl3hlS4GIGt1SE-9C07UeeF0iteez4skX9hDjV3v_MpG7XN50rodIXGUghdjN_s_ePRYiY2_0d7cOROP1EvEhbcNp1c7FaJzYzRNbC4ejWuqdVF88yRh7Y1_1frOzsrEKlFF8UWq2bl6jeOPcTyl0OZGkosKhuXXIVbnM9h_-X96MLqvRCPlvW9IrBjby-HXHlE_RFAw-68JViTuVNZz6zEFsDWV0M-D5-L8nRfedqEFP0Y1pg_7JZQnCggHKYUJ7lvhCa9-XCo1PJQZjbj9ukDM53B7WoZgpfKGjtnuRfp0kHEuZYrZGtXUHs_N7wmLdrZfeolKQ6RNa1nAAAAAINTZ2uAQ"
+        "BAJglPkAnFvYFhSl3hlS4GIGt1SE-9C07UeeF0iteez4skX9hDjV3v_MpG7XN50rodIXGUghdjN_s_ePRYiY2_0d7cOROP1EvEhbcNp1c7FaJzYzRNbC4ejWuqdVF88yRh7Y1_1frOzsrEKlFF8UWq2bl6jeOPcTyl0OZGkosKhuXXIVbnM9h_-X96MLqvRCPlvW9IrBjby-HXHlE_RFAw-68JViTuVNZz6zEFsDWV0M-D5-L8nRfedqEFP0Y1pg_7JZQnCggHKYUJ7lvhCa9-XCo1PJQZjbj9ukDM53B7WoZgpfKGjتنظیمات اختصاصی شما ───"
     ]
 
-# 🚨 فیکس حیاتی ۱: استفاده از توکن جدید و معتبر شما برای کلاینت پولر ورکر 🚨
+# استفاده از توکن جدید و معتبر شما برای کلاینت پولر ورکر
 BOT_TOKEN = "8813125038:AAFwiPBCMSJvFmKlFSHNqApJ-d0kzW0lUv4"
 
 app = Client("vip_worker", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN, in_memory=True)
@@ -114,14 +114,20 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
     is_youtube = "youtube.com" in url.lower() or "youtu.be" in url.lower()
     absolute_job_dir = str(job_dir.resolve()) 
     
-    # تنظیمات فرمت و رزولوشن
-    format_str = "bv*+ba/b" if is_youtube else "b"
-    if quality == "1080": format_str = "bv*[height<=1080]+ba/b"
-    elif quality == "720": format_str = "bv*[height<=720]+ba/b"
-    elif quality == "480": format_str = "bv*[height<=480]+ba/b"
-    elif quality == "audio": format_str = "ba/b"
+    # تنظیمات فرمت و رزولوشن برای یوتیوب و تیک‌تاک
+    if is_youtube:
+        format_str = "bv*+ba/b"
+        if quality == "1080": format_str = "bv*[height<=1080]+ba/b"
+        elif quality == "720": format_str = "bv*[height<=720]+ba/b"
+        elif quality == "480": format_str = "bv*[height<=480]+ba/b"
+        elif quality == "audio": format_str = "ba/b"
+    else:
+        format_str = "b"
+        if quality == "1080": format_str = "best[height<=1080]/best"
+        elif quality == "720": format_str = "best[height<=720]/best"
+        elif quality == "480": format_str = "best[height<=480]/best"
+        elif quality == "audio": format_str = "ba/b"
     
-    # بیس آپشن‌های دانلود
     base_cmd = [
         "yt-dlp", "--rm-cache-dir", 
         "-f", format_str, 
@@ -155,8 +161,8 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
         
     print_log(f"⚠️ Ninja Mode failed (Exit code {process.returncode}). Initiating Tank Mode fallback...")
 
-    # 🚀 فاز دوم: تانک مود (پروکسی VLESS + کوکی‌ها + کلاینت تلویزیون)
-    print_log("🛡️ Trying Tank Mode (VLESS Proxy + Cookies + TV Client)...")
+    # 🚀 فاز دوم: تانک مود (پروکسی VLESS + کوکی‌ها + کلاینت وب برای اعمال کوکی‌ها)
+    print_log("🛡️ Trying Tank Mode (VLESS Proxy + Cookies + Web Client)...")
     _setup_cookies() # ساخت فایل cookies.txt در صورت وجود سکرت در سیستم
     
     tank_cmd = list(base_cmd)
@@ -166,7 +172,8 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
         tank_cmd.extend(["--cookies", str(COOKIE_FILE_PATH.resolve())])
         
     if is_youtube:
-        tank_cmd.extend(["--extractor-args", "youtube:player_client=tv", "--remote-components", "ejs:github", "--impersonate", "chrome", "--force-ipv4"])
+        # 🚨 اصلاح نهایی: تغییر کلاینت از tv به کلاینت‌های وب جهت اعمال ۱۰۰٪ کوکی‌های کروم دسکتاپ شما
+        tank_cmd.extend(["--extractor-args", "youtube:player_client=web,mweb", "--remote-components", "ejs:github", "--impersonate", "chrome", "--force-ipv4"])
     tank_cmd.append(url)
     
     process = await asyncio.create_subprocess_exec(*tank_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
@@ -180,7 +187,6 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
     raise Exception(f"Both Ninja and Tank modes failed. Last error: {error_msg}")
 
 async def download_via_cobalt(url, job_dir, quality="max"):
-    """دانلود با کبالت به همراه اعمال کیفیت درخواستی کاربر"""
     print_log(f"🌟 Starting Cobalt API fallback for: {url} | Quality: {quality}")
     api_urls = ["https://api.cobalt.tools/api/json", "https://cobalt.q0.pm/api/json", "https://api.cobalt.tools/"]
     headers = {
@@ -218,8 +224,8 @@ async def download_via_cobalt(url, job_dir, quality="max"):
         return True
 
 async def main():
-    # ۱. راه‌اندازی خودکار پروکسی Xray در پس‌زمینه کانتینر
     await start_xray_proxy()
+    _setup_cookies()
 
     print_log("🔍 DIAGNOSTIC SYSTEM STARTING:")
     print(f"📁 Looking for cookies at: {COOKIE_FILE_PATH.resolve()}")
@@ -296,9 +302,10 @@ async def main():
 
                             # ساخت پکیج آپلود با تمام متادیتاها
                             is_audio = quality == "audio"
+                            quality_text = "صدا (MP3)" if is_audio else f"{quality}p"
                             upload_kwargs = {
                                 "chat_id": chat_id, 
-                                "caption": f"🎬 **دانلود موفق**\n⚡ توسط سرور پرسرعت", 
+                                "caption": f"🎬 **{title}**\n\n⚙️ کیفیت دانلود شده: `{quality_text}`\n⚡ توسط سرور پرسرعت", 
                                 "reply_to_message_id": message_id, 
                                 "progress": progress_callback
                             }
