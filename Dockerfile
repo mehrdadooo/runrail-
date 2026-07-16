@@ -19,12 +19,12 @@ WORKDIR /app
 COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Playwright + Chromium (حدود ۴۰۰MB)
+# Playwright + Chromium
 RUN pip install --no-cache-dir playwright && \
     playwright install --with-deps chromium && \
     playwright install-deps
 
 COPY . /app
-RUN chmod +x /app/entrypoint.sh
 
-ENTRYPOINT ["/app/entrypoint.sh"]
+# بدون نیاز به entrypoint.sh – مستقیم اجرا می‌شود
+CMD ["python", "worker.py"]
