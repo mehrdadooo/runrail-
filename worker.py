@@ -15,12 +15,14 @@ def print_log(msg):
     print(msg, flush=True)
     sys.stdout.flush()
 
+# ─── تنظیمات اختصاصی ───
 API_ID = 39884025
 API_HASH = "24ce21160fcabd7e7c0de00a77b45ef3"
+BOT_TOKEN = "8813125038:AAFwiPBCMSJvFmKlFSHNqApJ-d0kzW0lUv4"
 HF_URL = "https://downloads89oouu-downloader.hf.space" 
 WORKER_SECRET = "ali_vip_worker_2026"
 
-# خواندن سشن‌های چندگانه برای جلوگیری از FloodWait
+# سشن‌های گیت‌هاب (برای جلوگیری از فلود ویت)
 bot_sessions_env = os.getenv("BOT_SESSIONS")
 if bot_sessions_env:
     try:
@@ -36,8 +38,6 @@ else:
         "BAJglPkAnFvYFhSl3hlS4GIGt1SE-9C07UeeF0iteez4skX9hDjV3v_MpG7XN50rodIXGUghdjN_s_ePRYiY2_0d7cOROP1EvEhbcNp1c7FaJzYzRNbC4ejWuqdVF88yRh7Y1_1frOzsrEKlFF8UWq2bl6jeOPcTyl0OZGkosKhuXXIVbnM9h_-X96MLqvRCPlvW9IrBjby-HXHlE_RFAw-68JViTuVNZz6zEFsDWV0M-D5-L8nRfedqEFP0Y1pg_7JZQnCggHKYUJ7lvhCa9-XCo1PJQZjbj9ukDM53B7WoZgpfKGjtnuRfp0kHEuZYrZGtXUHs_N7wmLdrZfeolKQ6RNa1nAAAAAINTZ2uAQ"
     ]
 
-BOT_TOKEN = "8813125038:AAFwiPBCMSJvFmKlFSHNqApJ-d0kzW0lUv4"
-
 app = Client("vip_worker", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN, in_memory=True)
 
 COOKIE_FILE_PATH = Path(__file__).parent / "cookies.txt"
@@ -47,67 +47,47 @@ def _setup_cookies():
     if cookie_data and len(cookie_data.strip()) > 0:
         with open(COOKIE_FILE_PATH, "w", encoding="utf-8") as f:
             f.write(cookie_data)
-        print_log("🍪 YT_COOKIES detected! cookies.txt written successfully.")
+        print_log("🍪 YT_COOKIES loaded!")
         return True
     return False
 
 async def start_xray_proxy():
     vless_link = os.getenv("VLESS_LINK")
-    if not vless_link:
-        print_log("⚠️ VLESS_LINK is not set. Xray will not start.")
-        return
-
+    if not vless_link: return
     try:
-        print_log("⚙️ Configuring Xray VLESS Client...")
         vless_url = vless_link.split("#")[0]
         parsed = urllib.parse.urlparse(vless_url)
         qs = urllib.parse.parse_qs(parsed.query)
-        
         config = {
             "log": {"loglevel": "warning"},
             "inbounds": [{"port": 10808, "listen": "127.0.0.1", "protocol": "socks"}],
             "outbounds": [{
                 "protocol": "vless",
-                "settings": {
-                    "vnext": [{
-                        "address": parsed.hostname, 
-                        "port": int(parsed.port or 443), 
-                        "users": [{"id": parsed.username, "encryption": "none"}]
-                    }]
-                },
+                "settings": {"vnext": [{"address": parsed.hostname, "port": int(parsed.port or 443), "users": [{"id": parsed.username, "encryption": "none"}]}]},
                 "streamSettings": {
-                    "network": qs.get("type", ["tcp"])[0],
-                    "security": qs.get("security", ["none"])[0],
-                    "wsSettings": {
-                        "path": qs.get("path", ["/"])[0], 
-                        "headers": {"Host": qs.get("host", [""])[0]}
-                    },
-                    "tlsSettings": {
-                        "serverName": qs.get("sni", [""])[0], 
-                        "fingerprint": qs.get("fp", ["chrome"])[0], 
-                        "alpn": qs.get("alpn", ["http/1.1"])[0].split(",")
-                    }
+                    "network": qs.get("type", ["tcp"])[0], "security": qs.get("security", ["none"])[0],
+                    "wsSettings": {"path": qs.get("path", ["/"])[0], "headers": {"Host": qs.get("host", [""])[0]}},
+                    "tlsSettings": {"serverName": qs.get("sni", [""])[0], "fingerprint": qs.get("fp", ["chrome"])[0], "alpn": qs.get("alpn", ["http/1.1"])[0].split(",")}
                 }
             }]
         }
         with open("config.json", "w") as f: json.dump(config, f)
-        
         import subprocess
         subprocess.Popen(["/app/xray_bin/xray", "run", "-c", "config.json"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         await asyncio.sleep(3)
         print_log("✅ Xray Proxy is running on SOCKS5 127.0.0.1:10808")
-    except Exception as e:
-        print_log(f"❌ Failed to start Xray: {e}")
+    except Exception as e: print_log(f"❌ Failed to start Xray: {e}")
 
 async def download_video_via_ytdlp(url, job_dir, quality="max"):
     is_youtube = "youtube.com" in url.lower() or "youtu.be" in url.lower()
     absolute_job_dir = str(job_dir.resolve()) 
     
+    # 🚨 تله‌ی هوشمند کیفیت: مجبور کردن yt-dlp به ارور دادن در صورت نبود کیفیت بالا 🚨
     if is_youtube:
         format_str = "bv*+ba/b"
-        if quality == "1080": format_str = "bv*[height<=1080]+ba/b"
-        elif quality == "720": format_str = "bv*[height<=720]+ba/b"
-        elif quality == "480": format_str = "bv*[height<=480]+ba/b"
+        if quality == "1080": format_str = "bv*[height>=1080]+ba/b" # >= باعث میشه اگه 1080 نبود، ارور بده تا بره سراغ کبالت!
+        elif quality == "720": format_str = "bv*[height>=720]+ba/b"
+        elif quality == "480": format_str = "bv*[height>=480]+ba/b"
         elif quality == "audio": format_str = "ba/b"
     else:
         format_str = "b"
@@ -120,7 +100,7 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
         "yt-dlp", "--rm-cache-dir", "-f", format_str, 
         "--write-info-json", "--write-thumbnail", "--convert-thumbnails", "jpg",
         "--no-check-certificate", "--retries", "5", "--fragment-retries", "infinite",
-        "-o", f"{absolute_job_dir}/video.%(ext)s",
+        "-o", f"{absolute_job_dir}/video.%(ext)s"
     ]
     
     if quality == "audio":
@@ -128,10 +108,16 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
     else:
         base_cmd.extend(["--merge-output-format", "mp4", "--postprocessor-args", "ffmpeg:-movflags +faststart"])
 
-    # 🥷 فاز اول: Ninja Mode
-    print_log("🥷 Trying Ninja Mode (Direct Connection)...")
+    # 🔑 روش دوم: خواندن توکن OAuth2 از محیط (تلویزیون هوشمند)
+    oauth_token = os.getenv("OAUTH_TOKEN")
+    if oauth_token:
+        base_cmd.extend(["--username", "oauth2", "--password", '""'])
+
+    # 🥷 فاز اول: نینجا مود (مستقیم، بدون پروکسی، حل معمای جاوااسکریپت با Node.js)
+    print_log("🥷 Trying Ninja Mode (Direct + JS Challenge Solver)...")
     ninja_cmd = list(base_cmd)
-    if is_youtube: ninja_cmd.extend(["--extractor-args", "youtube:player_client=android", "--remote-components", "ejs:github", "--impersonate", "chrome"])
+    if is_youtube:
+        ninja_cmd.extend(["--extractor-args", "youtube:player_client=android,web", "--remote-components", "ejs:github", "--impersonate", "chrome"])
     ninja_cmd.append(url)
     
     process = await asyncio.create_subprocess_exec(*ninja_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
@@ -141,17 +127,20 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
         print_log("✅ Ninja Mode Success!")
         return True
         
-    print_log(f"⚠️ Ninja Mode failed (Exit code {process.returncode}). Initiating Tank Mode fallback...")
+    print_log(f"⚠️ Ninja Mode failed. Initiating Tank Mode fallback...")
 
-    # 🛡️ فاز دوم: Tank Mode
-    print_log("🛡️ Trying Tank Mode (VLESS Proxy + Cookies)...")
+    # 🛡️ فاز دوم: تانک مود (پروکسی VLESS + کوکی + کلاینت تلویزیون/وب)
+    print_log("🛡️ Trying Tank Mode (VLESS Proxy + Auth + Multi-Client)...")
     _setup_cookies()
     
     tank_cmd = list(base_cmd)
-    if os.getenv("VLESS_LINK"): tank_cmd.extend(["--proxy", "socks5h://127.0.0.1:10808"])
-    if COOKIE_FILE_PATH.exists(): tank_cmd.extend(["--cookies", str(COOKIE_FILE_PATH.resolve())])
+    if os.getenv("VLESS_LINK"):
+        tank_cmd.extend(["--proxy", "socks5h://127.0.0.1:10808"])
+    if COOKIE_FILE_PATH.exists():
+        tank_cmd.extend(["--cookies", str(COOKIE_FILE_PATH.resolve())])
         
-    if is_youtube: tank_cmd.extend(["--extractor-args", "youtube:player_client=web,mweb", "--remote-components", "ejs:github", "--impersonate", "chrome", "--force-ipv4"])
+    if is_youtube:
+        tank_cmd.extend(["--extractor-args", "youtube:player_client=tv,web", "--remote-components", "ejs:github", "--impersonate", "chrome", "--force-ipv4"])
     tank_cmd.append(url)
     
     process = await asyncio.create_subprocess_exec(*tank_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
@@ -162,11 +151,12 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
         return True
         
     error_msg = stderr.decode('utf-8', errors='ignore').strip()
-    raise Exception(f"yt-dlp failed completely. Last error: {error_msg}")
+    raise Exception(f"Both Ninja and Tank modes failed. Last error: {error_msg}")
 
 async def download_via_cobalt(url, job_dir, quality="max"):
+    """روش سوم: شلیک نهایی با استفاده از API کبالت برای دور زدن کامل یوتیوب"""
     print_log(f"🌟 Starting Cobalt API fallback for: {url} | Quality: {quality}")
-    api_urls = ["https://api.cobalt.tools/api/json", "https://cobalt.q0.pm/api/json", "https://api.cobalt.tools/"]
+    api_urls = ["https://api.cobalt.tools/api/json", "https://cobalt.q0.pm/api/json"]
     headers = {
         "Accept": "application/json", "Content-Type": "application/json",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
@@ -208,7 +198,7 @@ async def main():
     print_log("\n" + "="*50)
     print_log("🚀 Starting Persistent Telegram Client...")
     await app.start()
-    print_log("✅ VIP Worker Ready! Polling Hugging Face for jobs...\n")
+    print_log("✅ SUPER WORKER Ready! Polling Hugging Face for jobs...\n")
 
     async with aiohttp.ClientSession() as session:
         while True:
@@ -232,12 +222,13 @@ async def main():
                         try:
                             download_success = False
                             try:
+                                # تلاش اول: yt-dlp (نینجا، تانک، کوکی، OAuth2 و PO Token)
                                 await download_video_via_ytdlp(url, job_dir, quality)
                                 download_success = True
                             except Exception as e:
                                 print_log(f"⚠️ yt-dlp failed: {e}")
                             
-                            # 🚨 فیکس نهایی: اگر yt-dlp به هر دلیلی (کوکی، آی‌پی، یا کیفیت بالا) شکست خورد، مستقیماً کبالت را برای تمام سایت‌ها (شامل یوتیوب) بیدار کن!
+                            # تلاش دوم: اگر yt-dlp در هر صورتی نتوانست (کیفیت نبود یا گوگل قفل کرد)، کبالت وارد می‌شود!
                             if not download_success:
                                 print_log("🔄 Falling back to Cobalt API for heavy extraction...")
                                 try:
@@ -245,7 +236,7 @@ async def main():
                                     download_success = True
                                 except Exception as cobalt_err:
                                     print_log(f"❌ Cobalt API also failed: {cobalt_err}")
-                                    raise Exception("All download methods (yt-dlp & Cobalt) failed.")
+                                    raise Exception("All 3 download methods (Ninja, Tank, Cobalt) failed.")
 
                             # پیدا کردن فایل مدیا
                             matches = list(job_dir.glob("video.mp4")) or list(job_dir.glob("video.mp3")) or [m for m in job_dir.glob("video.*") if m.suffix.lower() not in ['.jpg', '.json']]
