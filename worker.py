@@ -21,7 +21,6 @@ API_HASH = "24ce21160fcabd7e7c0de00a77b45ef3"
 HF_URL = "https://downloads89oouu-downloader.hf.space"
 WORKER_SECRET = "ali_vip_worker_2026"
 
-# لیست سشن‌ها (همان که خودتان اصلاح کردید)
 BOT_SESSIONS = [
     "BAJglPkAO0RCs_NW3uELJV95CRa17odKleHTrosLpwhRpmfX3N1K7SqQobP1kJvc6czR6E1z5j9TChl_X5_hHlAtx5RZH-xdFiOfJ_CrTMrTRKY2wzpe9dC2E9CitkBqwgZQDyHbiLZC-mrJPoXgDZ2tGeNwMMbWd3kHal3me4N8HloJcvwbR93nopWSZaO1VE9OGol8iczRSPovbqMcexgkquu7yb8EO2U6aeHZOqiExD8Vdibnj8W4QUQLA60bdhNhZGSC4EmdKXKCq32DfZHFtNNxC3RMmh3h1xJdS6Jf4W9IJaR32E5mS8pM-COP9N9pCoLWlw-2XjQiSu5KM9AQjGcs5wAAAAINTZ2uAQ",
     "BAJglPkAEIHq7qQmQFqUMINW5U6OolhKB8sxXd5mn0pLpwl6mB5fRnvM8UFmd2wf-7N0oDZ0-Rms2QlSr9JMkRoXAAGxKTp0tj0kK_mUobjFlOtS8hctWZgSwNjcsEDXprLU4f7CMQLvRskRzpPkShd1TxsEuzjtjg2sq9_Ed1hBQan1-BFBdAJ2wVNGSfg6zOAUBgV1XUU1_SAl7LywJJQUmSeQEB8dBX_-tmUqJVzpJI6iorwqPxYu8n5k2bPnXdtRB-vbZf-Oi2Cv-1wl-cvG_0vTVPcVUnTiIJjigDpXRz_Eu0lmVIiRhSNtxJvtSj_4u1z-Ze9qnQOCfTNQ3dRQQHYO1wAAAAINTZ2uAQ",
@@ -42,6 +41,10 @@ def _setup_cookies():
         with open(COOKIE_FILE_PATH, "w", encoding="utf-8") as f:
             f.write(cookie_data)
         print_log("🍪 YT_COOKIES detected! cookies.txt written successfully.")
+        # چاپ ۵۰ کاراکتر اول برای اطمینان از خالی نبودن
+        with open(COOKIE_FILE_PATH, "r") as f:
+            content = f.read(50)
+        print_log(f"🍪 First 50 chars of cookies: {content}")
         return True
     return False
 
@@ -109,7 +112,6 @@ async def start_xray_proxy():
     except Exception as e:
         print_log(f"❌ Failed to start Xray: {e}")
 
-# تابع تبدیل کیفیت کاربر به عدد یا 'audio' (کاملاً بدون تغییر)
 def parse_quality(quality: str):
     q = quality.strip().lower().replace("p", "")
     if q in ("audio", "mp3", "sound", "music", "onlyaudio"):
@@ -117,7 +119,28 @@ def parse_quality(quality: str):
     match = re.search(r'(\d+)', q)
     if match:
         return int(match.group(1))
-    return None   # max quality
+    return None
+
+async def check_cookies_valid(url):
+    """بررسی اینکه با کوکی‌ها یوتیوب فرمتی ارائه می‌دهد یا خیر"""
+    cmd = ["yt-dlp", "--cookies", str(COOKIE_FILE_PATH.resolve()), "-F", url]
+    if os.getenv("VLESS_LINK"):
+        cmd[1:1] = ["--proxy", "socks5h://127.0.0.1:10808"]
+    print_log("🔍 Checking if cookies work (yt-dlp -F with proxy/cookies)...")
+    process = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
+    stdout, stderr = await process.communicate()
+    output = stdout.decode(errors="ignore") + stderr.decode(errors="ignore")
+    print_log("------ Cookie Check Output ------")
+    print_log(output[:2000])  # فقط 2000 کاراکتر اول
+    if "Requested format is not available" in output or "Only images are available" in output or "Sign in" in output:
+        return False
+    if "format code" in output.lower() or "ext" in output.lower():
+        return True
+    return False
 
 async def download_video_via_ytdlp(url, job_dir, quality="max"):
     is_youtube = "youtube.com" in url.lower() or "youtu.be" in url.lower()
@@ -125,7 +148,6 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
 
     res = parse_quality(quality)
 
-    # 📊 لاگ ۱: کیفیت اصلی و تجزیه‌شده
     print_log("=" * 60)
     print_log(f"Original quality = {quality}")
     print_log(f"Parsed quality   = {res}")
@@ -138,7 +160,6 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
         else:
             format_str = f"bestvideo[height<={res}]+bestaudio/best" if res else "b"
 
-    # 📊 لاگ ۲: رشته فرمت نهایی
     print_log(f"Format string = {format_str}")
 
     base_cmd = [
@@ -158,35 +179,39 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
     else:
         base_cmd.extend(["--merge-output-format", "mp4", "--postprocessor-args", "ffmpeg:-movflags +faststart"])
 
-    # 📊 لاگ ۷ (اضافه‌شده): نمایش فرمت‌های موجود با yt-dlp -F
-    list_cmd = ["yt-dlp", "-F", url]
-    print_log("Listing formats (yt-dlp -F)...")
-    list_proc = await asyncio.create_subprocess_exec(
-        *list_cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE
-    )
-    list_stdout, list_stderr = await list_proc.communicate()
-    print_log("------ LIST STDOUT ------")
-    print_log(list_stdout.decode(errors="ignore"))
-    print_log("------ LIST STDERR ------")
-    print_log(list_stderr.decode(errors="ignore"))
+    use_proxy = os.getenv("VLESS_LINK") is not None
+    _setup_cookies()
+    has_cookies = COOKIE_FILE_PATH.exists()
 
-    # 🚀 فاز اول: نینجا (مستقیم) – دستور و اجرا کاملاً مشابه قبل
-    print_log("🥷 Trying Ninja Mode (Direct Connection + Android Client)...")
+    if not has_cookies or (use_proxy and not await check_cookies_valid(url)):
+        print_log("⚠️ Cookies missing or invalid. Will attempt without, but may fail.")
+    else:
+        print_log("✅ Cookies seem valid.")
+
+    common_args = []
+    if use_proxy:
+        common_args.extend(["--proxy", "socks5h://127.0.0.1:10808"])
+    if has_cookies:
+        common_args.extend(["--cookies", str(COOKIE_FILE_PATH.resolve())])
+
+    # ==================== فاز اول: نینجا ====================
+    print_log("🥷 Trying Ninja Mode (Direct + Android client + Cookies)...")
     ninja_cmd = list(base_cmd)
+    ninja_cmd.extend(common_args)
     if is_youtube:
-        ninja_cmd.extend(["--extractor-args", "youtube:player_client=android", "--impersonate", "chrome"])
+        ninja_cmd.extend(["--extractor-args", "youtube:player_client=android"])
+        ninja_cmd.extend(["--impersonate", "chrome"])
     ninja_cmd.append(url)
 
-    # 📊 لاگ ۳: دستور کامل نینجا
     print_log("Running Ninja command:")
     print_log(" ".join(ninja_cmd))
 
-    process = await asyncio.create_subprocess_exec(*ninja_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+    process = await asyncio.create_subprocess_exec(
+        *ninja_cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
     stdout, stderr = await process.communicate()
-
-    # 📊 لاگ ۴: خروجی و خطای نینجا
     print_log(f"Ninja Exit code = {process.returncode}")
     print_log("------ NINJA STDOUT ------")
     print_log(stdout.decode(errors="ignore"))
@@ -197,30 +222,27 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
         print_log("✅ Ninja Mode Success!")
         return True
 
-    print_log(f"⚠️ Ninja Mode failed (Exit code {process.returncode}). Initiating Tank Mode fallback...")
+    print_log(f"⚠️ Ninja Mode failed. Initiating Tank Mode fallback...")
 
-    # 🛡️ فاز دوم: تانک (پروکسی + کوکی + TV Client) – بدون تغییر
-    print_log("🛡️ Trying Tank Mode (VLESS Proxy + Cookies + TV Client)...")
-    _setup_cookies()
-
+    # ==================== فاز دوم: تانک ====================
+    print_log("🛡️ Trying Tank Mode (Proxy + TV client + Cookies)...")
     tank_cmd = list(base_cmd)
-    if os.getenv("VLESS_LINK"):
-        tank_cmd.extend(["--proxy", "socks5h://127.0.0.1:10808"])
-    if COOKIE_FILE_PATH.exists():
-        tank_cmd.extend(["--cookies", str(COOKIE_FILE_PATH.resolve())])
-
+    tank_cmd.extend(common_args)
     if is_youtube:
-        tank_cmd.extend(["--extractor-args", "youtube:player_client=tv", "--impersonate", "chrome", "--force-ipv4"])
+        tank_cmd.extend(["--extractor-args", "youtube:player_client=tv"])
+        tank_cmd.extend(["--impersonate", "chrome"])
+        tank_cmd.extend(["--force-ipv4"])
     tank_cmd.append(url)
 
-    # 📊 لاگ ۳ (برای تانک): دستور کامل
     print_log("Running Tank command:")
     print_log(" ".join(tank_cmd))
 
-    process = await asyncio.create_subprocess_exec(*tank_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+    process = await asyncio.create_subprocess_exec(
+        *tank_cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
     stdout, stderr = await process.communicate()
-
-    # 📊 لاگ ۴ (برای تانک): خروجی و خطا
     print_log(f"Tank Exit code = {process.returncode}")
     print_log("------ TANK STDOUT ------")
     print_log(stdout.decode(errors="ignore"))
@@ -301,7 +323,6 @@ async def main():
                         url, chat_id, message_id, status_msg_id = data["url"], int(data["chat_id"]), int(data["message_id"]), int(data["status_msg_id"])
                         quality = data.get("quality", "max")
 
-                        # 🔥 لاگ کیفیت دریافتی از HF (از قبل موجود بود)
                         print_log(f"🔥 QUALITY FROM HF = {quality}")
 
                         job_id = str(uuid.uuid4())[:8]
@@ -322,31 +343,24 @@ async def main():
                                 await download_via_cobalt(url, job_dir, quality)
                                 download_success = True
 
-                            # 📊 لاگ ۵: فایل‌های موجود در job_dir
                             print_log("Files inside job directory:")
                             for f in job_dir.iterdir():
                                 print_log(f" -> {f.name}")
 
-                            # یافتن فایل رسانه
                             matches = list(job_dir.glob("video.mp4")) or list(job_dir.glob("video.mp3")) or [m for m in job_dir.glob("video.*") if m.suffix.lower() not in ['.jpg', '.json']]
                             if not matches or not download_success:
                                 raise FileNotFoundError("Video/Audio file not found on disk!")
                             file_path = str(matches[0].resolve())
 
-                            # کاور
                             thumb_path = None
                             thumb_matches = list(job_dir.glob("*.jpg"))
                             if thumb_matches:
                                 thumb_path = str(thumb_matches[0].resolve())
 
-                            # متادیتا + عنوان
                             width, height, duration = 0, 0, 0
                             title = "Unknown"
                             info_matches = list(job_dir.glob("*.info.json"))
-
-                            # 📊 لاگ ۶: فایل‌های info.json
                             print_log(f"Info files = {info_matches}")
-
                             if info_matches:
                                 try:
                                     with open(info_matches[0], 'r', encoding='utf-8') as f:
@@ -355,6 +369,11 @@ async def main():
                                         height = info.get('height', 0)
                                         duration = info.get('duration', 0)
                                         title = info.get('title', 'Untitled')
+
+                                        format_id = info.get('format_id', 'unknown')
+                                        print_log(f"🎯 FORMAT ID = {format_id}")
+                                        print_log(f"🎯 HEIGHT    = {height}")
+                                        print_log(f"🎯 WIDTH     = {width}")
                                 except Exception:
                                     pass
 
@@ -367,7 +386,6 @@ async def main():
                                         last_percent = percent
                                         print_log(f"[{job_id}] 🚀 Uploading Progress: {percent}%")
 
-                            # کپشن با عنوان
                             is_audio = quality == "audio"
                             quality_text = "صدا (MP3)" if is_audio else f"{quality}p"
                             caption = f"🎬 **{title}**\n\n⚙️ کیفیت: `{quality_text}`\n⚡ توسط سرور پرسرعت"
@@ -390,7 +408,7 @@ async def main():
                                 if height: upload_kwargs["height"] = height
                                 if duration: upload_kwargs["duration"] = int(duration)
 
-                            # آپلود با مدیریت خطای سشن‌ها
+                            # آپلود
                             upload_success = False
                             attempt = 0
                             used_sessions = set()
