@@ -7,9 +7,18 @@ import uuid
 import random
 import json
 import urllib.parse
+import time
 from pathlib import Path
 from pyrogram import Client
 from pyrogram.errors import FloodWait, AuthKeyDuplicated, AuthKeyInvalid
+
+# ---------- Playwright ----------
+from playwright.async_api import async_playwright
+
+# ذخیره‌سازی توکن در حافظه برای استفاده مجدد
+_cached_po_token = None
+_cached_token_time = 0
+TOKEN_TTL = 1800  # ۳۰ دقیقه
 
 def print_log(msg):
     print(msg, flush=True)
@@ -20,6 +29,7 @@ API_HASH = "24ce21160fcabd7e7c0de00a77b45ef3"
 HF_URL = "https://downloads89oouu-downloader.hf.space"
 WORKER_SECRET = "ali_vip_worker_2026"
 
+# سشن‌ها (دست‌نخورده)
 bot_sessions_env = os.getenv("BOT_SESSIONS")
 if bot_sessions_env:
     try:
@@ -114,11 +124,72 @@ async def start_xray_proxy():
     except Exception as e:
         print_log(f"❌ Failed to start Xray: {e}")
 
+async def get_po_token():
+    """با Playwright یک PO Token از یوتیوب استخراج می‌کند (با استفاده از پروکسی VLESS)."""
+    global _cached_po_token, _cached_token_time
+
+    # اگر توکن در حافظه و معتبر است، آن را برگردان
+    if _cached_po_token and (time.time() - _cached_token_time) < TOKEN_TTL:
+        print_log("🔁 Using cached PO Token")
+        return _cached_po_token
+
+    proxy_url = "socks5://127.0.0.1:10808"
+    print_log("🖥️ Launching headless browser to fetch PO Token...")
+
+    try:
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(
+                headless=True,
+                args=[
+                    '--no-sandbox',
+                    f'--proxy-server={proxy_url}',
+                    '--disable-blink-features=AutomationControlled'
+                ]
+            )
+            context = await browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+            )
+            page = await context.new_page()
+
+            # مخفی کردن ویژگی‌های اتوماسیون
+            await page.add_init_script("""() => {
+                Object.defineProperty(navigator, 'webdriver', { get: () => false });
+            }""")
+
+            await page.goto("https://www.youtube.com/", wait_until="domcontentloaded", timeout=30000)
+            await page.wait_for_timeout(5000)  # صبر برای بارگذاری کامل
+
+            # استخراج PO Token از localStorage یا ytcfg
+            token = await page.evaluate("""() => {
+                // روش اول: localStorage
+                let t = localStorage.getItem('ytidb:po');
+                if (t && t.length > 0) return t;
+                // روش دوم: ytcfg
+                if (window.ytcfg && window.ytcfg.data_ && window.ytcfg.data_.PO_TOKEN) {
+                    return window.ytcfg.data_.PO_TOKEN;
+                }
+                return '';
+            }""")
+
+            await browser.close()
+
+            if token:
+                _cached_po_token = token
+                _cached_token_time = time.time()
+                print_log(f"✅ PO Token obtained: {token[:20]}...")
+                return token
+            else:
+                print_log("⚠️ Could not extract PO Token from browser.")
+                return None
+    except Exception as e:
+        print_log(f"❌ Playwright error: {e}")
+        return None
+
 async def download_video_via_ytdlp(url, job_dir, quality="max"):
     is_youtube = "youtube.com" in url.lower() or "youtu.be" in url.lower()
     absolute_job_dir = str(job_dir.resolve())
 
-    # انتخاب فرمت
+    # انتخاب فرمت (همان منطق قبلی)
     format_str = "bv*+ba/b" if is_youtube else "b"
     if quality == "1080": format_str = "bv*[height<=1080]+ba/b"
     elif quality == "720": format_str = "bv*[height<=720]+ba/b"
@@ -142,9 +213,10 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
     else:
         base_cmd.extend(["--merge-output-format", "mp4", "--postprocessor-args", "ffmpeg:-movflags +faststart"])
 
-    # تنظیمات مشترک: پروکسی و کوکی (همیشه فعال)
+    # تنظیمات مشترک: پروکسی، کوکی (در صورت وجود)، و PO Token
     use_proxy = os.getenv("VLESS_LINK") is not None
     has_cookies = _setup_cookies()
+    po_token = await get_po_token() if is_youtube else None
 
     common_args = []
     if use_proxy:
@@ -152,12 +224,21 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
     if has_cookies:
         common_args.extend(["--cookies", str(COOKIE_FILE_PATH.resolve())])
 
-    # ==================== فاز اول: نینجا (وب + iOS، با کوکی و پروکسی) ====================
-    print_log("🥷 Trying Ninja Mode (Web/iOS Client + Cookies + Proxy)...")
+    # استخراج extractor-args مناسب با یا بدون PO Token
+    if is_youtube:
+        if po_token:
+            extractor_args = f"youtube:po_token={po_token};player_client=web,ios;formats=missing_pot"
+        else:
+            extractor_args = "youtube:player_client=web,ios;formats=missing_pot"
+    else:
+        extractor_args = None
+
+    # ==================== فاز اول: نینجا ====================
+    print_log("🥷 Trying Ninja Mode (Web/iOS Client + PO Token + Proxy)...")
     ninja_cmd = list(base_cmd)
     ninja_cmd.extend(common_args)
-    if is_youtube:
-        ninja_cmd.extend(["--extractor-args", "youtube:player_client=web,ios;formats=missing_pot"])
+    if extractor_args:
+        ninja_cmd.extend(["--extractor-args", extractor_args])
         ninja_cmd.extend(["--impersonate", "chrome"])
     ninja_cmd.append(url)
 
@@ -170,12 +251,16 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
 
     print_log(f"⚠️ Ninja Mode failed (Exit code {process.returncode}). Initiating Tank Mode fallback...")
 
-    # ==================== فاز دوم: تانک (TV + Web، با کوکی و پروکسی) ====================
-    print_log("🛡️ Trying Tank Mode (TV/Web Client + Proxy + Cookies)...")
+    # ==================== فاز دوم: تانک ====================
+    print_log("🛡️ Trying Tank Mode (TV/Web Client + PO Token + Proxy)...")
     tank_cmd = list(base_cmd)
     tank_cmd.extend(common_args)
     if is_youtube:
-        tank_cmd.extend(["--extractor-args", "youtube:player_client=tv,web;formats=missing_pot"])
+        if po_token:
+            tank_extractor = f"youtube:po_token={po_token};player_client=tv,web;formats=missing_pot"
+        else:
+            tank_extractor = "youtube:player_client=tv,web;formats=missing_pot"
+        tank_cmd.extend(["--extractor-args", tank_extractor])
         tank_cmd.extend(["--impersonate", "chrome"])
         tank_cmd.extend(["--force-ipv4"])
     tank_cmd.append(url)
