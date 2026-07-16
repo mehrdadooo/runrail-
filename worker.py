@@ -7,15 +7,9 @@ import uuid
 import random
 import json
 import urllib.parse
-import time
 from pathlib import Path
 from pyrogram import Client
 from pyrogram.errors import FloodWait, AuthKeyDuplicated, AuthKeyInvalid
-from playwright.async_api import async_playwright
-
-_cached_po_token = None
-_cached_token_time = 0
-TOKEN_TTL = 1800
 
 def print_log(msg):
     print(msg, flush=True)
@@ -23,9 +17,10 @@ def print_log(msg):
 
 API_ID = 39884025
 API_HASH = "24ce21160fcabd7e7c0de00a77b45ef3"
-HF_URL = "https://downloads89oouu-downloader.hf.space"
+HF_URL = "https://downloads89oouu-downloader.hf.space" 
 WORKER_SECRET = "ali_vip_worker_2026"
 
+# خواندن سشن‌های چندگانه از متغیر محیطی یا استفاده از هاردکد قبلی جهت جلوگیری از تداخل
 bot_sessions_env = os.getenv("BOT_SESSIONS")
 if bot_sessions_env:
     try:
@@ -41,6 +36,7 @@ else:
         "BAJglPkAnFvYFhSl3hlS4GIGt1SE-9C07UeeF0iteez4skX9hDjV3v_MpG7XN50rodIXGUghdjN_s_ePRYiY2_0d7cOROP1EvEhbcNp1c7FaJzYzRNbC4ejWuqdVF88yRh7Y1_1frOzsrEKlFF8UWq2bl6jeOPcTyl0OZGkosKhuXXIVbnM9h_-X96MLqvRCPlvW9IrBjby-HXHlE_RFAw-68JViTuVNZz6zEFsDWV0M-D5-L8nRfedqEFP0Y1pg_7JZQnCggHKYUJ7lvhCa9-XCo1PJQZjbj9ukDM53B7WoZgpfKGjtnuRfp0kHEuZYrZGtXUHs_N7wmLdrZfeolKQ6RNa1nAAAAAINTZ2uAQ"
     ]
 
+# 🚨 فیکس حیاتی ۱: استفاده از توکن جدید و معتبر شما برای کلاینت پولر ورکر 🚨
 BOT_TOKEN = "8813125038:AAFwiPBCMSJvFmKlFSHNqApJ-d0kzW0lUv4"
 
 app = Client("vip_worker", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN, in_memory=True)
@@ -48,6 +44,7 @@ app = Client("vip_worker", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN
 COOKIE_FILE_PATH = Path(__file__).parent / "cookies.txt"
 
 def _setup_cookies():
+    """بررسی وجود کوکی در متغیرهای محیطی و ساخت فایل cookies.txt"""
     cookie_data = os.getenv("YT_COOKIES")
     if cookie_data and len(cookie_data.strip()) > 0:
         with open(COOKIE_FILE_PATH, "w", encoding="utf-8") as f:
@@ -57,6 +54,7 @@ def _setup_cookies():
     return False
 
 async def start_xray_proxy():
+    """دانلود خودکار و راه‌اندازی سرور VLESS در پس‌زمینه کانتینر ران‌ریل"""
     vless_link = os.getenv("VLESS_LINK")
     if not vless_link:
         print_log("⚠️ VLESS_LINK is not set. Xray will not start.")
@@ -67,28 +65,7 @@ async def start_xray_proxy():
         vless_url = vless_link.split("#")[0]
         parsed = urllib.parse.urlparse(vless_url)
         qs = urllib.parse.parse_qs(parsed.query)
-
-        network = qs.get("type", ["tcp"])[0]
-        security = qs.get("security", ["none"])[0]
-
-        stream_settings = {
-            "network": network,
-            "security": security,
-        }
-
-        if network == "ws":
-            stream_settings["wsSettings"] = {
-                "path": qs.get("path", ["/"])[0],
-                "headers": {"Host": qs.get("host", [""])[0]}
-            }
-
-        if security == "tls":
-            stream_settings["tlsSettings"] = {
-                "serverName": qs.get("sni", [""])[0],
-                "fingerprint": qs.get("fp", ["chrome"])[0],
-                "alpn": qs.get("alpn", ["http/1.1"])[0].split(",")
-            }
-
+        
         config = {
             "log": {"loglevel": "warning"},
             "inbounds": [{"port": 10808, "listen": "127.0.0.1", "protocol": "socks"}],
@@ -96,18 +73,30 @@ async def start_xray_proxy():
                 "protocol": "vless",
                 "settings": {
                     "vnext": [{
-                        "address": parsed.hostname,
-                        "port": int(parsed.port or 443),
+                        "address": parsed.hostname, 
+                        "port": int(parsed.port or 443), 
                         "users": [{"id": parsed.username, "encryption": "none"}]
                     }]
                 },
-                "streamSettings": stream_settings
+                "streamSettings": {
+                    "network": qs.get("type", ["tcp"])[0],
+                    "security": qs.get("security", ["none"])[0],
+                    "wsSettings": {
+                        "path": qs.get("path", ["/"])[0], 
+                        "headers": {"Host": qs.get("host", [""])[0]}
+                    },
+                    "tlsSettings": {
+                        "serverName": qs.get("sni", [""])[0], 
+                        "fingerprint": qs.get("fp", ["chrome"])[0], 
+                        "alpn": qs.get("alpn", ["http/1.1"])[0].split(",")
+                    }
+                }
             }]
         }
-
+        
         with open("config.json", "w") as f:
             json.dump(config, f)
-
+        
         print_log("🚀 Starting Xray Process in background...")
         import subprocess
         subprocess.Popen(
@@ -120,188 +109,85 @@ async def start_xray_proxy():
     except Exception as e:
         print_log(f"❌ Failed to start Xray: {e}")
 
-async def get_po_token():
-    global _cached_po_token, _cached_token_time
-
-    if _cached_po_token and (time.time() - _cached_token_time) < TOKEN_TTL:
-        print_log("🔁 Using cached PO Token")
-        return _cached_po_token
-
-    proxy_url = "socks5://127.0.0.1:10808"
-    print_log("🖥️ Launching headless browser to fetch PO Token...")
-
-    try:
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(
-                headless=True,
-                args=[
-                    '--no-sandbox',
-                    f'--proxy-server={proxy_url}',
-                    '--disable-blink-features=AutomationControlled'
-                ]
-            )
-            context = await browser.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-            )
-
-            # بارگذاری کوکی‌ها از فایل cookies.txt
-            if COOKIE_FILE_PATH.exists():
-                try:
-                    with open(COOKIE_FILE_PATH, "r", encoding="utf-8") as f:
-                        cookies_raw = f.read()
-                    cookies_list = []
-                    for line in cookies_raw.splitlines():
-                        line = line.strip()
-                        if not line or line.startswith("#"):
-                            continue
-                        parts = line.split("\t")
-                        if len(parts) >= 7:
-                            domain, flag, path, secure, expires, name, value = parts[0], parts[1], parts[2], parts[3], parts[4], parts[5], parts[6]
-                            cookies_list.append({
-                                "name": name,
-                                "value": value,
-                                "domain": domain,
-                                "path": path,
-                                "expires": int(expires) if expires.isdigit() else -1,
-                                "httpOnly": flag == "TRUE" if flag.upper() == "TRUE" else False,
-                                "secure": secure.upper() == "TRUE",
-                                "sameSite": "None"
-                            })
-                    await context.add_cookies(cookies_list)
-                    print_log("🍪 Cookies loaded into browser.")
-                except Exception as e:
-                    print_log(f"⚠️ Could not load cookies: {e}")
-
-            page = await context.new_page()
-
-            await page.add_init_script("""() => {
-                Object.defineProperty(navigator, 'webdriver', { get: () => false });
-            }""")
-
-            await page.goto("https://www.youtube.com/", wait_until="domcontentloaded", timeout=30000)
-            await page.wait_for_timeout(8000)
-
-            token = await page.evaluate("""() => {
-                let t = localStorage.getItem('ytidb:po');
-                if (t && t.length > 0) return t;
-                if (window.ytcfg && window.ytcfg.data_ && window.ytcfg.data_.PO_TOKEN) {
-                    return window.ytcfg.data_.PO_TOKEN;
-                }
-                return '';
-            }""")
-
-            if not token:
-                token = await page.evaluate("""() => sessionStorage.getItem('ytidb:po') || ''""")
-
-            await browser.close()
-
-            if token:
-                _cached_po_token = token
-                _cached_token_time = time.time()
-                print_log(f"✅ PO Token obtained: {token[:20]}...")
-                return token
-            else:
-                print_log("⚠️ Could not extract PO Token from browser (no token found).")
-                return None
-    except Exception as e:
-        print_log(f"❌ Playwright error: {e}")
-        return None
-
 async def download_video_via_ytdlp(url, job_dir, quality="max"):
+    """دانلود پرسرعت با شبیه‌سازها و سیستم Fallback دو مرحله‌ای (نینجا و تانک)"""
     is_youtube = "youtube.com" in url.lower() or "youtu.be" in url.lower()
-    absolute_job_dir = str(job_dir.resolve())
-
+    absolute_job_dir = str(job_dir.resolve()) 
+    
+    # تنظیمات فرمت و رزولوشن
     format_str = "bv*+ba/b" if is_youtube else "b"
     if quality == "1080": format_str = "bv*[height<=1080]+ba/b"
     elif quality == "720": format_str = "bv*[height<=720]+ba/b"
     elif quality == "480": format_str = "bv*[height<=480]+ba/b"
     elif quality == "audio": format_str = "ba/b"
-
+    
+    # بیس آپشن‌های دانلود
     base_cmd = [
-        "yt-dlp", "--rm-cache-dir",
-        "-f", format_str,
+        "yt-dlp", "--rm-cache-dir", 
+        "-f", format_str, 
         "--write-info-json",
         "--write-thumbnail",
         "--convert-thumbnails", "jpg",
-        "--no-check-certificate",
+        "--no-check-certificate", 
         "--retries", "5",
         "--fragment-retries", "infinite",
         "-o", f"{absolute_job_dir}/video.%(ext)s",
     ]
-
+    
     if quality == "audio":
         base_cmd.extend(["--extract-audio", "--audio-format", "mp3"])
     else:
         base_cmd.extend(["--merge-output-format", "mp4", "--postprocessor-args", "ffmpeg:-movflags +faststart"])
 
-    use_proxy = os.getenv("VLESS_LINK") is not None
-    has_cookies = _setup_cookies()
-    po_token = await get_po_token() if is_youtube else None
-
-    common_args = []
-    if use_proxy:
-        common_args.extend(["--proxy", "socks5h://127.0.0.1:10808"])
-    if has_cookies:
-        common_args.extend(["--cookies", str(COOKIE_FILE_PATH.resolve())])
-
-    if is_youtube:
-        if po_token:
-            extractor_args = f"youtube:po_token={po_token};player_client=web,ios;formats=missing_pot"
-        else:
-            extractor_args = "youtube:player_client=web,ios;formats=missing_pot"
-    else:
-        extractor_args = None
-
-    # فاز اول: نینجا
-    print_log("🥷 Trying Ninja Mode (Web/iOS Client + PO Token + Proxy)...")
+    # 🚀 فاز اول: تلاش با نینجا مود (مستقیم، بدون پروکسی، کلاینت اندروید)
+    print_log("🥷 Trying Ninja Mode (Direct Connection + Android Client)...")
     ninja_cmd = list(base_cmd)
-    ninja_cmd.extend(common_args)
-    if extractor_args:
-        ninja_cmd.extend(["--extractor-args", extractor_args])
-        ninja_cmd.extend(["--impersonate", "chrome"])
+    if is_youtube:
+        ninja_cmd.extend(["--extractor-args", "youtube:player_client=android", "--remote-components", "ejs:github", "--impersonate", "chrome"])
     ninja_cmd.append(url)
-
+    
     process = await asyncio.create_subprocess_exec(*ninja_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     stdout, stderr = await process.communicate()
-
+    
     if process.returncode == 0:
         print_log("✅ Ninja Mode Success!")
         return True
-
+        
     print_log(f"⚠️ Ninja Mode failed (Exit code {process.returncode}). Initiating Tank Mode fallback...")
 
-    # فاز دوم: تانک
-    print_log("🛡️ Trying Tank Mode (TV/Web Client + PO Token + Proxy)...")
+    # 🚀 فاز دوم: تانک مود (پروکسی VLESS + کوکی‌ها + کلاینت تلویزیون)
+    print_log("🛡️ Trying Tank Mode (VLESS Proxy + Cookies + TV Client)...")
+    _setup_cookies() # ساخت فایل cookies.txt در صورت وجود سکرت در سیستم
+    
     tank_cmd = list(base_cmd)
-    tank_cmd.extend(common_args)
+    if os.getenv("VLESS_LINK"):
+        tank_cmd.extend(["--proxy", "socks5h://127.0.0.1:10808"])
+    if COOKIE_FILE_PATH.exists():
+        tank_cmd.extend(["--cookies", str(COOKIE_FILE_PATH.resolve())])
+        
     if is_youtube:
-        if po_token:
-            tank_extractor = f"youtube:po_token={po_token};player_client=tv,web;formats=missing_pot"
-        else:
-            tank_extractor = "youtube:player_client=tv,web;formats=missing_pot"
-        tank_cmd.extend(["--extractor-args", tank_extractor])
-        tank_cmd.extend(["--impersonate", "chrome"])
-        tank_cmd.extend(["--force-ipv4"])
+        tank_cmd.extend(["--extractor-args", "youtube:player_client=tv", "--remote-components", "ejs:github", "--impersonate", "chrome", "--force-ipv4"])
     tank_cmd.append(url)
-
+    
     process = await asyncio.create_subprocess_exec(*tank_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     stdout, stderr = await process.communicate()
-
+    
     if process.returncode == 0:
         print_log("✅ Tank Mode Success!")
         return True
-
+        
     error_msg = stderr.decode('utf-8', errors='ignore').strip()
     raise Exception(f"Both Ninja and Tank modes failed. Last error: {error_msg}")
 
 async def download_via_cobalt(url, job_dir, quality="max"):
+    """دانلود با کبالت به همراه اعمال کیفیت درخواستی کاربر"""
     print_log(f"🌟 Starting Cobalt API fallback for: {url} | Quality: {quality}")
     api_urls = ["https://api.cobalt.tools/api/json", "https://cobalt.q0.pm/api/json", "https://api.cobalt.tools/"]
     headers = {
         "Accept": "application/json", "Content-Type": "application/json",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
     }
-
+    
     payload = {"url": url, "vQuality": quality if quality != "audio" else "max"}
     if quality == "audio":
         payload["isAudioOnly"] = True
@@ -332,6 +218,7 @@ async def download_via_cobalt(url, job_dir, quality="max"):
         return True
 
 async def main():
+    # ۱. راه‌اندازی خودکار پروکسی Xray در پس‌زمینه کانتینر
     await start_xray_proxy()
 
     print_log("🔍 DIAGNOSTIC SYSTEM STARTING:")
@@ -359,7 +246,7 @@ async def main():
 
                         url, chat_id, message_id, status_msg_id = data["url"], int(data["chat_id"]), int(data["message_id"]), int(data["status_msg_id"])
                         quality = data.get("quality", "max")
-
+                        
                         job_id = str(uuid.uuid4())[:8]
                         job_dir = Path(f"jobs/{job_id}")
                         job_dir.mkdir(parents=True, exist_ok=True)
@@ -372,20 +259,23 @@ async def main():
                                 download_success = True
                             except Exception as e:
                                 print_log(f"⚠️ yt-dlp download failed: {e}")
-
+                            
                             if not download_success and not ("youtube.com" in url or "youtu.be" in url):
                                 print_log("🔄 Falling back to Cobalt API...")
                                 await download_via_cobalt(url, job_dir, quality)
                                 download_success = True
 
+                            # پیدا کردن فایل مدیا
                             matches = list(job_dir.glob("video.mp4")) or list(job_dir.glob("video.mp3")) or [m for m in job_dir.glob("video.*") if m.suffix.lower() not in ['.jpg', '.json']]
                             if not matches or not download_success: raise FileNotFoundError("Video/Audio file not found on disk!")
                             file_path = str(matches[0].resolve())
 
+                            # پیدا کردن عکس کاور
                             thumb_path = None
                             thumb_matches = list(job_dir.glob("*.jpg"))
                             if thumb_matches: thumb_path = str(thumb_matches[0].resolve())
 
+                            # استخراج متادیتا از JSON
                             width, height, duration = 0, 0, 0
                             info_matches = list(job_dir.glob("*.info.json"))
                             if info_matches:
@@ -404,14 +294,15 @@ async def main():
                                         last_percent = percent
                                         print_log(f"[{job_id}] 🚀 Uploading Progress: {percent}%")
 
+                            # ساخت پکیج آپلود با تمام متادیتاها
                             is_audio = quality == "audio"
                             upload_kwargs = {
-                                "chat_id": chat_id,
-                                "caption": f"🎬 **دانلود موفق**\n⚡ توسط سرور پرسرعت",
-                                "reply_to_message_id": message_id,
+                                "chat_id": chat_id, 
+                                "caption": f"🎬 **دانلود موفق**\n⚡ توسط سرور پرسرعت", 
+                                "reply_to_message_id": message_id, 
                                 "progress": progress_callback
                             }
-
+                            
                             if is_audio:
                                 upload_kwargs["audio"] = file_path
                                 if thumb_path: upload_kwargs["thumb"] = thumb_path
@@ -431,10 +322,12 @@ async def main():
                                 try:
                                     async with upload_app:
                                         print_log(f"[{job_id}] 🚀 Attempt {attempt+1}: Uploading to Telegram...")
+                                        
                                         if is_audio:
                                             await upload_app.send_audio(**upload_kwargs)
                                         else:
                                             await upload_app.send_video(**upload_kwargs)
+                                            
                                         try: await upload_app.delete_messages(chat_id, status_msg_id)
                                         except: pass
                                     print_log(f"[{job_id}] 🎉 Job Completed!")
@@ -442,7 +335,7 @@ async def main():
                                     break
                                 except (AuthKeyDuplicated, AuthKeyInvalid): continue
                                 except FloodWait as e: await asyncio.sleep(e.value + 2)
-
+                                    
                             if not upload_success: print_log(f"[{job_id}] ❌ Upload failed after all retries.")
 
                         except Exception as e: print_log(f"[{job_id}] ❌ Error during processing: {e}")
