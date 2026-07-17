@@ -15,14 +15,11 @@ def print_log(msg):
     print(msg, flush=True)
     sys.stdout.flush()
 
-# ─── تنظیمات اختصاصی ───
 API_ID = 39884025
 API_HASH = "24ce21160fcabd7e7c0de00a77b45ef3"
-BOT_TOKEN = "8813125038:AAFwiPBCMSJvFmKlFSHNqApJ-d0kzW0lUv4"
 HF_URL = "https://downloads89oouu-downloader.hf.space" 
 WORKER_SECRET = "ali_vip_worker_2026"
 
-# سشن‌های گیت‌هاب برای جلوگیری از FloodWait
 bot_sessions_env = os.getenv("BOT_SESSIONS")
 if bot_sessions_env:
     try:
@@ -38,6 +35,7 @@ else:
         "BAJglPkAnFvYFhSl3hlS4GIGt1SE-9C07UeeF0iteez4skX9hDjV3v_MpG7XN50rodIXGUghdjN_s_ePRYiY2_0d7cOROP1EvEhbcNp1c7FaJzYzRNbC4ejWuqdVF88yRh7Y1_1frOzsrEKlFF8UWq2bl6jeOPcTyl0OZGkosKhuXXIVbnM9h_-X96MLqvRCPlvW9IrBjby-HXHlE_RFAw-68JViTuVNZz6zEFsDWV0M-D5-L8nRfedqEFP0Y1pg_7JZQnCggHKYUJ7lvhCa9-XCo1PJQZjbj9ukDM53B7WoZgpfKGjtnuRfp0kHEuZYrZGtXUHs_N7wmLdrZfeolKQ6RNa1nAAAAAINTZ2uAQ"
     ]
 
+BOT_TOKEN = "8813125038:AAFwiPBCMSJvFmKlFSHNqApJ-d0kzW0lUv4"
 app = Client("vip_worker", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN, in_memory=True)
 
 COOKIE_FILE_PATH = Path(__file__).parent / "cookies.txt"
@@ -80,10 +78,10 @@ async def start_xray_proxy():
     except Exception as e: print_log(f"❌ Failed to start Xray: {e}")
 
 async def download_video_via_ytdlp(url, job_dir, quality="max"):
-    """دانلود اختصاصی کیفیت بالا با استفاده از کوکی، پروکسی و شبیه‌ساز وب/تلویزیون"""
     is_youtube = "youtube.com" in url.lower() or "youtu.be" in url.lower()
     absolute_job_dir = str(job_dir.resolve()) 
     
+    # 🚨 تنظیمات کیفیت دقیق
     if is_youtube:
         format_str = "bv*+ba/b"
         if quality == "1080": format_str = "bv*[height<=1080]+ba/b"
@@ -97,10 +95,11 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
         elif quality == "480": format_str = "best[height<=480]/best"
         elif quality == "audio": format_str = "ba/b"
     
+    # دستور پایه‌ای دانلود
     cmd = [
         "yt-dlp", "--rm-cache-dir", "-f", format_str, 
         "--write-info-json", "--write-thumbnail", "--convert-thumbnails", "jpg",
-        "--no-check-certificate", "--retries", "5", "--fragment-retries", "infinite",
+        "--no-check-certificate", "--retries", "10", "--fragment-retries", "infinite",
         "-o", f"{absolute_job_dir}/video.%(ext)s"
     ]
     
@@ -109,7 +108,7 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
     else:
         cmd.extend(["--merge-output-format", "mp4", "--postprocessor-args", "ffmpeg:-movflags +faststart"])
 
-    print_log("🛡️ Starting yt-dlp High-Quality Mode (VLESS Proxy + Cookies + Web/TV Client)...")
+    print_log("🛡️ Starting yt-dlp Ultimate Mode (VLESS Proxy + Cookies + Deno JS Solver)...")
     _setup_cookies()
     
     if os.getenv("VLESS_LINK"):
@@ -118,8 +117,13 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
         cmd.extend(["--cookies", str(COOKIE_FILE_PATH.resolve())])
         
     if is_youtube:
-        # استفاده از وب و تلویزیون برای دور زدن قفل کیفیت بالا
-        cmd.extend(["--extractor-args", "youtube:player_client=tv,web", "--remote-components", "ejs:github", "--impersonate", "chrome", "--force-ipv4"])
+        # 🚨 فیکس جهانی: اتصال مستقیم به کلاینت‌های وب با استفاده از موتور Deno برای حل معمای یوتیوب
+        cmd.extend([
+            "--extractor-args", "youtube:player_client=web,mweb", 
+            "--remote-components", "ejs:github", 
+            "--impersonate", "chrome", 
+            "--force-ipv4"
+        ])
     cmd.append(url)
     
     print_log(f"🎬 Running Command: {' '.join(cmd)}")
@@ -128,19 +132,23 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
     stdout, stderr = await process.communicate()
     
     if process.returncode == 0:
-        print_log("✅ yt-dlp High-Quality Download Success!")
+        print_log("✅ yt-dlp Ultimate Download Success!")
         return True
         
     error_msg = stderr.decode('utf-8', errors='ignore').strip()
     raise Exception(f"yt-dlp failed: {error_msg}")
 
 async def download_via_cobalt(url, job_dir, quality="max"):
-    """خط‌شکن نهایی: استفاده از API کبالت در صورت مسدود شدن کامل yt-dlp"""
     print_log(f"🌟 Starting Cobalt API fallback for: {url} | Quality: {quality}")
+    
+    # 🚨 آپدیت هدرهای کبالت برای دور زدن فیلترهای جدید API
     api_urls = ["https://api.cobalt.tools/api/json", "https://cobalt.q0.pm/api/json"]
     headers = {
-        "Accept": "application/json", "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+        "Accept": "application/json", 
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Origin": "https://cobalt.tools",
+        "Referer": "https://cobalt.tools/"
     }
     
     payload = {"url": url, "vQuality": quality if quality != "audio" else "max"}
@@ -157,7 +165,7 @@ async def download_via_cobalt(url, job_dir, quality="max"):
                         if video_url: break
             except: continue
 
-        if not video_url: raise Exception("❌ All Cobalt APIs failed.")
+        if not video_url: raise Exception("❌ All Cobalt APIs failed or blocked.")
 
         ext = "mp3" if quality == "audio" else "mp4"
         file_path = f"{job_dir.resolve()}/video.{ext}"
@@ -203,15 +211,13 @@ async def main():
                         try:
                             download_success = False
                             try:
-                                # تلاش اول: استخراج کیفیت اصلی با yt-dlp
                                 await download_video_via_ytdlp(url, job_dir, quality)
                                 download_success = True
                             except Exception as e:
                                 print_log(f"⚠️ yt-dlp failed: {e}")
                             
-                            # 🚨 تلاش دوم (Fallback): اگر yt-dlp روی کیفیت بالا کرش کرد، درجا کبالت را صدا بزن!
                             if not download_success:
-                                print_log("🔄 Falling back to Cobalt API for heavy extraction...")
+                                print_log("🔄 Falling back to Cobalt API...")
                                 try:
                                     await download_via_cobalt(url, job_dir, quality)
                                     download_success = True
@@ -219,17 +225,14 @@ async def main():
                                     print_log(f"❌ Cobalt API also failed: {cobalt_err}")
                                     raise Exception("All download methods (yt-dlp & Cobalt) failed.")
 
-                            # پیدا کردن فایل مدیا
                             matches = list(job_dir.glob("video.mp4")) or list(job_dir.glob("video.mp3")) or [m for m in job_dir.glob("video.*") if m.suffix.lower() not in ['.jpg', '.json']]
                             if not matches or not download_success: raise FileNotFoundError("Video/Audio file not found on disk!")
                             file_path = str(matches[0].resolve())
 
-                            # پیدا کردن عکس کاور
                             thumb_path = None
                             thumb_matches = list(job_dir.glob("*.jpg"))
                             if thumb_matches: thumb_path = str(thumb_matches[0].resolve())
 
-                            # استخراج متادیتا از JSON
                             width, height, duration, title = 0, 0, 0, "Video"
                             info_matches = list(job_dir.glob("*.info.json"))
                             if info_matches:
@@ -249,7 +252,7 @@ async def main():
                                         print_log(f"[{job_id}] 🚀 Uploading Progress: {percent}%")
 
                             is_audio = quality == "audio"
-                            quality_text = "صدا (MP3)" if is_audio else f"{quality}p" if quality != "max" else "بهترین"
+                            quality_text = "صدا (MP3)" if is_audio else f"{quality}p" if quality != "max" else "بهترین کیفیت"
                             upload_kwargs = {
                                 "chat_id": chat_id, 
                                 "caption": f"🎬 **{title}**\n\n⚙️ کیفیت: `{quality_text}`\n⚡ دریافت سریع", 
