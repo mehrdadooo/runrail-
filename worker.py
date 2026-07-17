@@ -81,13 +81,13 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
     is_youtube = "youtube.com" in url.lower() or "youtu.be" in url.lower()
     absolute_job_dir = str(job_dir.resolve()) 
     
-    # 🚨 تنظیمات کیفیت دقیق
+    # 🚨 تله‌ی هوشمند کیفیت: حذف بخش /b تا در صورت نبودن کیفیت بالا، دانلود متوقف شود 🚨
     if is_youtube:
-        format_str = "bv*+ba/b"
-        if quality == "1080": format_str = "bv*[height<=1080]+ba/b"
-        elif quality == "720": format_str = "bv*[height<=720]+ba/b"
-        elif quality == "480": format_str = "bv*[height<=480]+ba/b"
+        if quality == "1080": format_str = "bv*[height<=1080]+ba" 
+        elif quality == "720": format_str = "bv*[height<=720]+ba"
+        elif quality == "480": format_str = "bv*[height<=480]+ba"
         elif quality == "audio": format_str = "ba/b"
+        else: format_str = "bv*+ba/b"
     else:
         format_str = "b"
         if quality == "1080": format_str = "best[height<=1080]/best"
@@ -95,11 +95,10 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
         elif quality == "480": format_str = "best[height<=480]/best"
         elif quality == "audio": format_str = "ba/b"
     
-    # دستور پایه‌ای دانلود
     cmd = [
         "yt-dlp", "--rm-cache-dir", "-f", format_str, 
         "--write-info-json", "--write-thumbnail", "--convert-thumbnails", "jpg",
-        "--no-check-certificate", "--retries", "10", "--fragment-retries", "infinite",
+        "--no-check-certificate", "--retries", "5", "--fragment-retries", "infinite",
         "-o", f"{absolute_job_dir}/video.%(ext)s"
     ]
     
@@ -108,51 +107,65 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
     else:
         cmd.extend(["--merge-output-format", "mp4", "--postprocessor-args", "ffmpeg:-movflags +faststart"])
 
-    print_log("🛡️ Starting yt-dlp Ultimate Mode (VLESS Proxy + Cookies + Deno JS Solver)...")
-    _setup_cookies()
-    
-    if os.getenv("VLESS_LINK"):
-        cmd.extend(["--proxy", "socks5h://127.0.0.1:10808"])
-    if COOKIE_FILE_PATH.exists():
-        cmd.extend(["--cookies", str(COOKIE_FILE_PATH.resolve())])
-        
+    print_log("🥷 Trying Ninja Mode (Direct Connection + iOS Client)...")
+    ninja_cmd = list(cmd)
     if is_youtube:
-        # 🚨 فیکس جهانی: اتصال مستقیم به کلاینت‌های وب با استفاده از موتور Deno برای حل معمای یوتیوب
-        cmd.extend([
-            "--extractor-args", "youtube:player_client=web,mweb", 
-            "--remote-components", "ejs:github", 
-            "--impersonate", "chrome", 
-            "--force-ipv4"
-        ])
-    cmd.append(url)
+        # کلاینت ios به صورت پیش‌فرض کیفیت 1080p را راحت‌تر می‌دهد
+        ninja_cmd.extend(["--extractor-args", "youtube:player_client=ios,android", "--remote-components", "ejs:github", "--impersonate", "chrome"])
+    ninja_cmd.append(url)
     
-    print_log(f"🎬 Running Command: {' '.join(cmd)}")
-    
-    process = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+    process = await asyncio.create_subprocess_exec(*ninja_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     stdout, stderr = await process.communicate()
     
     if process.returncode == 0:
-        print_log("✅ yt-dlp Ultimate Download Success!")
+        print_log("✅ Ninja Mode Success!")
+        return True
+        
+    print_log(f"⚠️ Ninja Mode failed. Initiating Tank Mode fallback...")
+
+    print_log("🛡️ Trying Tank Mode (VLESS Proxy + Cookies + Web Client)...")
+    _setup_cookies()
+    
+    tank_cmd = list(cmd)
+    if os.getenv("VLESS_LINK"):
+        tank_cmd.extend(["--proxy", "socks5h://127.0.0.1:10808"])
+    if COOKIE_FILE_PATH.exists():
+        tank_cmd.extend(["--cookies", str(COOKIE_FILE_PATH.resolve())])
+        
+    if is_youtube:
+        tank_cmd.extend(["--extractor-args", "youtube:player_client=web,tv", "--remote-components", "ejs:github", "--impersonate", "chrome", "--force-ipv4"])
+    tank_cmd.append(url)
+    
+    process = await asyncio.create_subprocess_exec(*tank_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+    stdout, stderr = await process.communicate()
+    
+    if process.returncode == 0:
+        print_log("✅ Tank Mode Success!")
         return True
         
     error_msg = stderr.decode('utf-8', errors='ignore').strip()
     raise Exception(f"yt-dlp failed: {error_msg}")
 
 async def download_via_cobalt(url, job_dir, quality="max"):
-    print_log(f"🌟 Starting Cobalt API fallback for: {url} | Quality: {quality}")
+    """🚨 آپدیت به Cobalt v7 API: سریع‌تر، قدرتمندتر و بی‌نقص برای کیفیت 1080p 🚨"""
+    print_log(f"🌟 Starting Cobalt API (v7) fallback for: {url} | Quality: {quality}")
     
-    # 🚨 آپدیت هدرهای کبالت برای دور زدن فیلترهای جدید API
-    api_urls = ["https://api.cobalt.tools/api/json", "https://cobalt.q0.pm/api/json"]
+    api_urls = ["https://api.cobalt.tools/"]
     headers = {
         "Accept": "application/json", 
         "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Origin": "https://cobalt.tools",
-        "Referer": "https://cobalt.tools/"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
     }
     
-    payload = {"url": url, "vQuality": quality if quality != "audio" else "max"}
-    if quality == "audio": payload["isAudioOnly"] = True
+    # تنظیم دقیق کیفیت برای کبالت v7
+    q_val = "1080" if quality == "max" else quality
+    payload = {"url": url}
+    
+    if quality == "audio": 
+        payload["isAudioOnly"] = True
+    else:
+        payload["videoQuality"] = q_val if q_val in ["1080", "720", "480", "360", "240", "144"] else "1080"
+        payload["isAudioMuted"] = False
 
     async with aiohttp.ClientSession() as session:
         video_url = None
@@ -161,9 +174,13 @@ async def download_via_cobalt(url, job_dir, quality="max"):
                 async with session.post(api, headers=headers, json=payload, timeout=15) as resp:
                     if resp.status in [200, 202]:
                         data = await resp.json()
-                        video_url = data.get("url")
-                        if video_url: break
-            except: continue
+                        # کبالت v7 مستقیماً لینک دانلود را در url یا استریم برمی‌گرداند
+                        if data.get("status") in ["redirect", "stream", "success"]:
+                            video_url = data.get("url")
+                            if video_url: break
+            except Exception as e: 
+                print_log(f"Cobalt API attempt failed: {e}")
+                continue
 
         if not video_url: raise Exception("❌ All Cobalt APIs failed or blocked.")
 
@@ -217,7 +234,7 @@ async def main():
                                 print_log(f"⚠️ yt-dlp failed: {e}")
                             
                             if not download_success:
-                                print_log("🔄 Falling back to Cobalt API...")
+                                print_log("🔄 Falling back to Cobalt API (v7) for high quality extraction...")
                                 try:
                                     await download_via_cobalt(url, job_dir, quality)
                                     download_success = True
