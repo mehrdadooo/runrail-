@@ -20,10 +20,13 @@ API_HASH = "24ce21160fcabd7e7c0de00a77b45ef3"
 HF_URL = "https://downloads89oouu-downloader.hf.space" 
 WORKER_SECRET = "ali_vip_worker_2026"
 
+# خواندن سشن‌های چندگانه از متغیر محیطی یا استفاده از هاردکد قبلی جهت جلوگیری از تداخل
 bot_sessions_env = os.getenv("BOT_SESSIONS")
 if bot_sessions_env:
-    try: BOT_SESSIONS = json.loads(bot_sessions_env)
-    except: BOT_SESSIONS = [s.strip() for s in bot_sessions_env.split(",") if s.strip()]
+    try:
+        BOT_SESSIONS = json.loads(bot_sessions_env)
+    except Exception:
+        BOT_SESSIONS = [s.strip() for s in bot_sessions_env.split(",") if s.strip()]
 else:
     BOT_SESSIONS = [
         "BAJglPkAO0RCs_NW3uELJV95CRa17odKleHTrosLpwhRpmfX3N1K7SqQobP1kJvc6czR6E1z5j9TChl_X5_hHlAtx5RZH-xdFiOfJ_CrTMrTRKY2wzpe9dC2E9CitkBqwgZQDyHbiLZC-mrJPoXgDZ2tGeNwMMbWd3kHal3me4N8HloJcvwbR93nopWSZaO1VE9OGol8iczRSPovbqMcexgkquu7yb8EO2U6aeHZOqiExD8Vdibnj8W4QUQLA60bdhNhZGSC4EmdKXKCq32DfZHFtNNxC3RMmh3h1xJdS6Jf4W9IJaR32E5mS8pM-COP9N9pCoLWlw-2XjQiSu5KM9AQjGcs5wAAAAINTZ2uAQ",
@@ -33,162 +36,173 @@ else:
         "BAJglPkAnFvYFhSl3hlS4GIGt1SE-9C07UeeF0iteez4skX9hDjV3v_MpG7XN50rodIXGUghdjN_s_ePRYiY2_0d7cOROP1EvEhbcNp1c7FaJzYzRNbC4ejWuqdVF88yRh7Y1_1frOzsrEKlFF8UWq2bl6jeOPcTyl0OZGkosKhuXXIVbnM9h_-X96MLqvRCPlvW9IrBjby-HXHlE_RFAw-68JViTuVNZz6zEFsDWV0M-D5-L8nRfedqEFP0Y1pg_7JZQnCggHKYUJ7lvhCa9-XCo1PJQZjbj9ukDM53B7WoZgpfKGjtnuRfp0kHEuZYrZGtXUHs_N7wmLdrZfeolKQ6RNa1nAAAAAINTZ2uAQ"
     ]
 
+# 🚨 فیکس حیاتی ۱: استفاده از توکن معتبر
 BOT_TOKEN = "8813125038:AAFwiPBCMSJvFmKlFSHNqApJ-d0kzW0lUv4"
+
 app = Client("vip_worker", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN, in_memory=True)
 
-# 🚨 آدرس ذخیره توکنِ دائمیِ تلویزیون هوشمند
-CACHE_DIR = Path("/app/yt_cache")
+COOKIE_FILE_PATH = Path(__file__).parent / "cookies.txt"
+
+def _setup_cookies():
+    """بررسی وجود کوکی در متغیرهای محیطی و ساخت فایل cookies.txt"""
+    cookie_data = os.getenv("YT_COOKIES")
+    if cookie_data and len(cookie_data.strip()) > 0:
+        with open(COOKIE_FILE_PATH, "w", encoding="utf-8") as f:
+            f.write(cookie_data)
+        print_log("🍪 YT_COOKIES detected! cookies.txt written successfully.")
+        return True
+    return False
 
 async def start_xray_proxy():
+    """دانلود خودکار و راه‌اندازی سرور VLESS در پس‌زمینه کانتینر ران‌ریل"""
     vless_link = os.getenv("VLESS_LINK")
-    if not vless_link: return
+    if not vless_link:
+        print_log("⚠️ VLESS_LINK is not set. Xray will not start.")
+        return
+
     try:
         print_log("⚙️ Configuring Xray VLESS Client...")
         vless_url = vless_link.split("#")[0]
         parsed = urllib.parse.urlparse(vless_url)
         qs = urllib.parse.parse_qs(parsed.query)
+        
         config = {
             "log": {"loglevel": "warning"},
             "inbounds": [{"port": 10808, "listen": "127.0.0.1", "protocol": "socks"}],
             "outbounds": [{
                 "protocol": "vless",
-                "settings": {"vnext": [{"address": parsed.hostname, "port": int(parsed.port or 443), "users": [{"id": parsed.username, "encryption": "none"}]}]},
+                "settings": {
+                    "vnext": [{
+                        "address": parsed.hostname, 
+                        "port": int(parsed.port or 443), 
+                        "users": [{"id": parsed.username, "encryption": "none"}]
+                    }]
+                },
                 "streamSettings": {
-                    "network": qs.get("type", ["tcp"])[0], "security": qs.get("security", ["none"])[0],
-                    "wsSettings": {"path": qs.get("path", ["/"])[0], "headers": {"Host": qs.get("host", [""])[0]}},
-                    "tlsSettings": {"serverName": qs.get("sni", [""])[0], "fingerprint": qs.get("fp", ["chrome"])[0], "alpn": qs.get("alpn", ["http/1.1"])[0].split(",")}
+                    "network": qs.get("type", ["tcp"])[0],
+                    "security": qs.get("security", ["none"])[0],
+                    "wsSettings": {
+                        "path": qs.get("path", ["/"])[0], 
+                        "headers": {"Host": qs.get("host", [""])[0]}
+                    },
+                    "tlsSettings": {
+                        "serverName": qs.get("sni", [""])[0], 
+                        "fingerprint": qs.get("fp", ["chrome"])[0], 
+                        "alpn": qs.get("alpn", ["http/1.1"])[0].split(",")
+                    }
                 }
             }]
         }
-        with open("config.json", "w") as f: json.dump(config, f)
+        
+        with open("config.json", "w") as f:
+            json.dump(config, f)
+        
+        print_log("🚀 Starting Xray Process in background...")
         import subprocess
-        subprocess.Popen(["/app/xray_bin/xray", "run", "-c", "config.json"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.Popen(
+            ["/app/xray_bin/xray", "run", "-c", "config.json"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
         await asyncio.sleep(3)
         print_log("✅ Xray Proxy is running on SOCKS5 127.0.0.1:10808")
-    except Exception as e: print_log(f"❌ Failed to start Xray: {e}")
-
-async def setup_oauth2():
-    """عملیات هوشمندِ دریافت توکن تلویزیون از یوتیوب"""
-    CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    token_file = CACHE_DIR / "youtube-oauth2-tokens.json"
-
-    oauth_env = os.getenv("OAUTH_TOKEN")
-    if oauth_env:
-        with open(token_file, "w", encoding="utf-8") as f:
-            f.write(oauth_env)
-        print_log("✅ OAUTH_TOKEN loaded from Variables!")
-        return True
-
-    print_log("\n" + "🔥"*20)
-    print_log("🚨 OAUTH2 SETUP REQUIRED 🚨")
-    print_log("لطفاً به لاگ‌های زیر دقت کنید. یوتیوب از شما می‌خواهد که یک کد را وارد کنید.")
-    print_log("🔥"*20 + "\n")
-
-    cmd = [
-        "yt-dlp",
-        "--proxy", "socks5h://127.0.0.1:10808", 
-        "--username", "oauth2",
-        "--password", '""',
-        "--cache-dir", str(CACHE_DIR),
-        "--dump-json",
-        "https://www.youtube.com/watch?v=jNQXAC9IVRw" # یک ویدیوی کوتاه تستی
-    ]
-
-    process = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
-
-    while True:
-        line = await process.stdout.readline()
-        if not line: break
-        print_log(line.decode().strip())
-
-    await process.wait()
-
-    if token_file.exists():
-        print_log("\n" + "🎉"*10 + " OAUTH2 SUCCESS " + "🎉"*10)
-        print_log("کدِ توکنِ دائمی شما با موفقیت ساخته شد. لطفاً تمام متن بین دو خط چین را کپی کنید:\n")
-        print_log("-" * 50)
-        with open(token_file, "r", encoding="utf-8") as f:
-            print_log(f.read().strip())
-        print_log("-" * 50)
-        print_log("\n👉 حالا به بخش Variables در ران‌ریل (Railway) بروید.")
-        print_log("👉 یک متغیر جدید بسازید به نام: OAUTH_TOKEN")
-        print_log("👉 متنی که کپی کردید را آنجا Paste کنید.")
-        print_log("👉 سرور پس از ذخیره شدن دوباره روشن می‌شود و آماده کار است!")
-        await asyncio.Event().wait() # توقف برنامه تا کاربر توکن را وارد کند
-    else:
-        print_log("❌ OAuth2 generation failed. Please check logs.")
-        await asyncio.Event().wait()
+    except Exception as e:
+        print_log(f"❌ Failed to start Xray: {e}")
 
 async def download_video_via_ytdlp(url, job_dir, quality="max"):
+    """دانلود پرسرعت با شبیه‌سازها و سیستم Fallback دو مرحله‌ای (نینجا و تانک) - آپدیت بای‌پس 1080p"""
     is_youtube = "youtube.com" in url.lower() or "youtu.be" in url.lower()
     absolute_job_dir = str(job_dir.resolve()) 
     
-    if is_youtube:
-        if quality == "1080": format_str = "bv*[height>=1080]+ba" 
-        elif quality == "720": format_str = "bv*[height>=720]+ba"
-        elif quality == "480": format_str = "bv*[height>=480]+ba"
-        elif quality == "audio": format_str = "ba/b"
-        else: format_str = "bv*+ba/b"
-    else:
-        format_str = "b"
-        if quality == "1080": format_str = "best[height<=1080]/best"
-        elif quality == "720": format_str = "best[height<=720]/best"
-        elif quality == "480": format_str = "best[height<=480]/best"
-        elif quality == "audio": format_str = "ba/b"
+    # تنظیمات فرمت و رزولوشن
+    format_str = "bv*+ba/b" if is_youtube else "b"
+    if quality == "1080": format_str = "bv*[height<=1080]+ba/b"
+    elif quality == "720": format_str = "bv*[height<=720]+ba/b"
+    elif quality == "480": format_str = "bv*[height<=480]+ba/b"
+    elif quality == "audio": format_str = "ba/b"
     
-    cmd = [
-        "yt-dlp", "--rm-cache-dir", "-f", format_str, 
-        "--write-info-json", "--write-thumbnail", "--convert-thumbnails", "jpg",
-        "--no-check-certificate", "--retries", "10", "--fragment-retries", "infinite",
-        "-o", f"{absolute_job_dir}/video.%(ext)s"
+    # بیس آپشن‌های دانلود
+    base_cmd = [
+        "yt-dlp", "--rm-cache-dir", 
+        "-f", format_str, 
+        "--write-info-json",
+        "--write-thumbnail",
+        "--convert-thumbnails", "jpg",
+        "--no-check-certificate", 
+        "--retries", "5",
+        "--fragment-retries", "infinite",
+        "-o", f"{absolute_job_dir}/video.%(ext)s",
     ]
     
-    if quality == "audio": cmd.extend(["--extract-audio", "--audio-format", "mp3"])
-    else: cmd.extend(["--merge-output-format", "mp4", "--postprocessor-args", "ffmpeg:-movflags +faststart"])
+    if quality == "audio":
+        base_cmd.extend(["--extract-audio", "--audio-format", "mp3"])
+    else:
+        base_cmd.extend(["--merge-output-format", "mp4", "--postprocessor-args", "ffmpeg:-movflags +faststart"])
 
-    # 🛡️ فقط تانک‌مودِ نهایی (احراز هویت با تلویزیون + OAuth2)
-    print_log("🛡️ Trying Ultimate Mode (VLESS Proxy + OAuth2 + TV Client)...")
+    # 🚀 فاز اول: تلاش با نینجا مود (مستقیم، بدون پروکسی، کلاینت‌های ضد-تحریم وب و اندروید وی‌آر)
+    print_log("🥷 Trying Ninja Mode (Direct Connection + Modern Clients)...")
+    ninja_cmd = list(base_cmd)
+    if is_youtube:
+        # آپدیت ۲۰۲۶ برای جلوگیری از تنزل کیفیت به ۳۶۰p
+        ninja_cmd.extend([
+            "--extractor-args", "youtube:player_client=web,android_vr,tv_downgraded;player_skip=webpage", 
+            "--remote-components", "ejs:github", 
+            "--impersonate", "chrome",
+            "--force-ipv4"
+        ])
+    ninja_cmd.append(url)
     
-    tank_cmd = list(cmd)
+    process = await asyncio.create_subprocess_exec(*ninja_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+    stdout, stderr = await process.communicate()
+    
+    if process.returncode == 0:
+        print_log("✅ Ninja Mode Success!")
+        return True
+        
+    print_log(f"⚠️ Ninja Mode failed (Exit code {process.returncode}). Initiating Tank Mode fallback...")
+
+    # 🚀 فاز دوم: تانک مود (پروکسی VLESS + کوکی‌ها + کلاینت Web Creator)
+    print_log("🛡️ Trying Tank Mode (VLESS Proxy + Cookies + Web Creator Client)...")
+    _setup_cookies() 
+    
+    tank_cmd = list(base_cmd)
     if os.getenv("VLESS_LINK"):
         tank_cmd.extend(["--proxy", "socks5h://127.0.0.1:10808"])
+    if COOKIE_FILE_PATH.exists():
+        tank_cmd.extend(["--cookies", str(COOKIE_FILE_PATH.resolve())])
         
     if is_youtube:
-        # اعمال تنظیمات معجزه‌آسای OAuth2 روی کلاینت تلویزیون
+        # آپدیت ۲۰۲۶ کلاینت‌های کوکی‌دار
         tank_cmd.extend([
-            "--username", "oauth2", 
-            "--password", '""', 
-            "--cache-dir", str(CACHE_DIR),
-            "--extractor-args", "youtube:player_client=tv", 
+            "--extractor-args", "youtube:player_client=web_creator,tv_downgraded,android_vr;player_skip=webpage", 
             "--remote-components", "ejs:github", 
             "--impersonate", "chrome", 
             "--force-ipv4"
         ])
     tank_cmd.append(url)
     
-    print_log(f"🎬 Running Command: {' '.join(tank_cmd)}")
-    
     process = await asyncio.create_subprocess_exec(*tank_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     stdout, stderr = await process.communicate()
     
     if process.returncode == 0:
-        print_log("✅ Ultimate Mode Success!")
+        print_log("✅ Tank Mode Success!")
         return True
         
     error_msg = stderr.decode('utf-8', errors='ignore').strip()
-    raise Exception(f"yt-dlp failed: {error_msg}")
+    raise Exception(f"Both Ninja and Tank modes failed. Last error: {error_msg}")
 
 async def download_via_cobalt(url, job_dir, quality="max"):
+    """دانلود با کبالت به همراه اعمال کیفیت درخواستی کاربر"""
     print_log(f"🌟 Starting Cobalt API fallback for: {url} | Quality: {quality}")
-    api_urls = ["https://api.cobalt.tools/api/json", "https://co.wuk.sh/api/json", "https://cobalt.q0.pm/api/json"]
-    headers = {"Accept": "application/json", "Content-Type": "application/json", "User-Agent": "Mozilla/5.0"}
+    api_urls = ["https://api.cobalt.tools/api/json", "https://cobalt.q0.pm/api/json", "https://api.cobalt.tools/"]
+    headers = {
+        "Accept": "application/json", "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+    }
     
-    q_val = "1080" if quality == "max" else quality
-    payload = {"url": url}
-    if quality == "audio": payload["isAudioOnly"] = True
-    else:
-        payload["videoQuality"] = q_val if q_val in ["1080", "720", "480", "360", "240", "144"] else "1080"
-        payload["isAudioMuted"] = False
+    payload = {"url": url, "vQuality": quality if quality != "audio" else "max"}
+    if quality == "audio":
+        payload["isAudioOnly"] = True
 
     async with aiohttp.ClientSession() as session:
         video_url = None
@@ -197,18 +211,16 @@ async def download_via_cobalt(url, job_dir, quality="max"):
                 async with session.post(api, headers=headers, json=payload, timeout=15) as resp:
                     if resp.status in [200, 202]:
                         data = await resp.json()
-                        if data.get("status") in ["redirect", "stream", "success", "picker"]:
-                            video_url = data.get("url")
-                            if video_url: break
+                        video_url = data.get("url")
+                        if video_url: break
             except: continue
 
         if not video_url: raise Exception("❌ All Cobalt APIs failed.")
 
         ext = "mp3" if quality == "audio" else "mp4"
         file_path = f"{job_dir.resolve()}/video.{ext}"
-        print_log(f"📥 Downloading raw media from Cobalt to: {file_path}")
         async with session.get(video_url) as video_resp:
-            if video_resp.status != 200: raise Exception("Download from Cobalt stream failed.")
+            if video_resp.status != 200: raise Exception("Download failed.")
             with open(file_path, 'wb') as f:
                 while True:
                     chunk = await video_resp.content.read(2 * 1024 * 1024)
@@ -218,15 +230,20 @@ async def download_via_cobalt(url, job_dir, quality="max"):
         return True
 
 async def main():
+    # ۱. راه‌اندازی خودکار پروکسی Xray در پس‌زمینه کانتینر
     await start_xray_proxy()
-    
-    # 🚨 فراخوانی سیستم استخراج توکنِ تلویزیون در همان ابتدا
-    await setup_oauth2()
 
-    print_log("\n" + "="*50)
-    print_log("🚀 Starting Persistent Telegram Client...")
+    print_log("🔍 DIAGNOSTIC SYSTEM STARTING:")
+    print(f"📁 Looking for cookies at: {COOKIE_FILE_PATH.resolve()}")
+    if COOKIE_FILE_PATH.exists():
+        print("✅ SUCCESS: cookies.txt FOUND and will be loaded!")
+    else:
+        print("⚠️ WARNING: cookies.txt was NOT found next to worker.py!")
+    print("="*50 + "\n")
+
+    print("🚀 Starting Persistent Telegram Client...")
     await app.start()
-    print_log("✅ SUPER WORKER Ready! Polling Hugging Face for jobs...\n")
+    print("✅ VIP Worker Ready! Polling Hugging Face for jobs...\n")
 
     async with aiohttp.ClientSession() as session:
         while True:
@@ -253,32 +270,31 @@ async def main():
                                 await download_video_via_ytdlp(url, job_dir, quality)
                                 download_success = True
                             except Exception as e:
-                                print_log(f"⚠️ yt-dlp failed: {e}")
+                                print_log(f"⚠️ yt-dlp download failed: {e}")
                             
-                            if not download_success:
-                                print_log("🔄 Falling back to Cobalt API for high quality extraction...")
-                                try:
-                                    await download_via_cobalt(url, job_dir, quality)
-                                    download_success = True
-                                except Exception as cobalt_err:
-                                    print_log(f"❌ Cobalt API also failed: {cobalt_err}")
-                                    raise Exception("All download methods (yt-dlp & Cobalt) failed.")
+                            if not download_success and not ("youtube.com" in url or "youtu.be" in url):
+                                print_log("🔄 Falling back to Cobalt API...")
+                                await download_via_cobalt(url, job_dir, quality)
+                                download_success = True
 
+                            # پیدا کردن فایل مدیا
                             matches = list(job_dir.glob("video.mp4")) or list(job_dir.glob("video.mp3")) or [m for m in job_dir.glob("video.*") if m.suffix.lower() not in ['.jpg', '.json']]
                             if not matches or not download_success: raise FileNotFoundError("Video/Audio file not found on disk!")
                             file_path = str(matches[0].resolve())
 
+                            # پیدا کردن عکس کاور
                             thumb_path = None
                             thumb_matches = list(job_dir.glob("*.jpg"))
                             if thumb_matches: thumb_path = str(thumb_matches[0].resolve())
 
-                            width, height, duration, title = 0, 0, 0, "Video"
+                            # استخراج متادیتا از JSON
+                            width, height, duration = 0, 0, 0
                             info_matches = list(job_dir.glob("*.info.json"))
                             if info_matches:
                                 try:
                                     with open(info_matches[0], 'r', encoding='utf-8') as f:
                                         info = json.load(f)
-                                        width, height, duration, title = info.get('width', 0), info.get('height', 0), info.get('duration', 0), info.get('title', 'Video')
+                                        width, height, duration = info.get('width', 0), info.get('height', 0), info.get('duration', 0)
                                 except Exception: pass
 
                             last_percent = -1
@@ -290,11 +306,11 @@ async def main():
                                         last_percent = percent
                                         print_log(f"[{job_id}] 🚀 Uploading Progress: {percent}%")
 
+                            # ساخت پکیج آپلود با تمام متادیتاها
                             is_audio = quality == "audio"
-                            quality_text = "صدا (MP3)" if is_audio else f"{quality}p" if quality != "max" else "بهترین کیفیت"
                             upload_kwargs = {
                                 "chat_id": chat_id, 
-                                "caption": f"🎬 **{title}**\n\n⚙️ کیفیت: `{quality_text}`\n⚡ دریافت سریع", 
+                                "caption": f"🎬 **دانلود موفق**\n⚡ توسط سرور پرسرعت", 
                                 "reply_to_message_id": message_id, 
                                 "progress": progress_callback
                             }
@@ -318,8 +334,12 @@ async def main():
                                 try:
                                     async with upload_app:
                                         print_log(f"[{job_id}] 🚀 Attempt {attempt+1}: Uploading to Telegram...")
-                                        if is_audio: await upload_app.send_audio(**upload_kwargs)
-                                        else: await upload_app.send_video(**upload_kwargs)
+                                        
+                                        if is_audio:
+                                            await upload_app.send_audio(**upload_kwargs)
+                                        else:
+                                            await upload_app.send_video(**upload_kwargs)
+                                            
                                         try: await upload_app.delete_messages(chat_id, status_msg_id)
                                         except: pass
                                     print_log(f"[{job_id}] 🎉 Job Completed!")
