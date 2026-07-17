@@ -15,11 +15,14 @@ def print_log(msg):
     print(msg, flush=True)
     sys.stdout.flush()
 
+# ─── تنظیمات اختصاصی ───
 API_ID = 39884025
 API_HASH = "24ce21160fcabd7e7c0de00a77b45ef3"
+BOT_TOKEN = "8813125038:AAFwiPBCMSJvFmKlFSHNqApJ-d0kzW0lUv4"
 HF_URL = "https://downloads89oouu-downloader.hf.space" 
 WORKER_SECRET = "ali_vip_worker_2026"
 
+# سشن‌های گیت‌هاب (برای جلوگیری از FloodWait)
 bot_sessions_env = os.getenv("BOT_SESSIONS")
 if bot_sessions_env:
     try:
@@ -35,7 +38,6 @@ else:
         "BAJglPkAnFvYFhSl3hlS4GIGt1SE-9C07UeeF0iteez4skX9hDjV3v_MpG7XN50rodIXGUghdjN_s_ePRYiY2_0d7cOROP1EvEhbcNp1c7FaJzYzRNbC4ejWuqdVF88yRh7Y1_1frOzsrEKlFF8UWq2bl6jeOPcTyl0OZGkosKhuXXIVbnM9h_-X96MLqvRCPlvW9IrBjby-HXHlE_RFAw-68JViTuVNZz6zEFsDWV0M-D5-L8nRfedqEFP0Y1pg_7JZQnCggHKYUJ7lvhCa9-XCo1PJQZjbj9ukDM53B7WoZgpfKGjtnuRfp0kHEuZYrZGtXUHs_N7wmLdrZfeolKQ6RNa1nAAAAAINTZ2uAQ"
     ]
 
-BOT_TOKEN = "8813125038:AAFwiPBCMSJvFmKlFSHNqApJ-d0kzW0lUv4"
 app = Client("vip_worker", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN, in_memory=True)
 
 COOKIE_FILE_PATH = Path(__file__).parent / "cookies.txt"
@@ -45,7 +47,7 @@ def _setup_cookies():
     if cookie_data and len(cookie_data.strip()) > 0:
         with open(COOKIE_FILE_PATH, "w", encoding="utf-8") as f:
             f.write(cookie_data)
-        print_log("🍪 YT_COOKIES detected! cookies.txt written successfully.")
+        print_log("🍪 YT_COOKIES loaded!")
         return True
     return False
 
@@ -53,7 +55,6 @@ async def start_xray_proxy():
     vless_link = os.getenv("VLESS_LINK")
     if not vless_link: return
     try:
-        print_log("⚙️ Configuring Xray VLESS Client...")
         vless_url = vless_link.split("#")[0]
         parsed = urllib.parse.urlparse(vless_url)
         qs = urllib.parse.parse_qs(parsed.query)
@@ -81,12 +82,13 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
     is_youtube = "youtube.com" in url.lower() or "youtu.be" in url.lower()
     absolute_job_dir = str(job_dir.resolve()) 
     
+    # 🚨 تله‌ی هوشمند کیفیت: حذف بخش /b تا در صورت نبودن کیفیت بالا، دانلود یواشکی متوقف شود 🚨
     if is_youtube:
-        format_str = "bv*+ba/b"
-        if quality == "1080": format_str = "bv*[height<=1080]+ba/b" 
-        elif quality == "720": format_str = "bv*[height<=720]+ba/b"
-        elif quality == "480": format_str = "bv*[height<=480]+ba/b"
+        if quality == "1080": format_str = "bv*[height<=1080]+ba" 
+        elif quality == "720": format_str = "bv*[height<=720]+ba"
+        elif quality == "480": format_str = "bv*[height<=480]+ba"
         elif quality == "audio": format_str = "ba/b"
+        else: format_str = "bv*+ba"
     else:
         format_str = "b"
         if quality == "1080": format_str = "best[height<=1080]/best"
@@ -106,10 +108,11 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
     else:
         cmd.extend(["--merge-output-format", "mp4", "--postprocessor-args", "ffmpeg:-movflags +faststart"])
 
-    print_log("🥷 Trying Ninja Mode (Direct Connection + Android Client)...")
+    print_log("🥷 Trying Ninja Mode (Direct Connection + iOS Client)...")
     ninja_cmd = list(cmd)
     if is_youtube:
-        ninja_cmd.extend(["--extractor-args", "youtube:player_client=android,ios", "--remote-components", "ejs:github", "--impersonate", "chrome"])
+        # کلاینت اندروید روی کیفیت‌ها حساس است، آن را با ios جایگزین کردیم
+        ninja_cmd.extend(["--extractor-args", "youtube:player_client=ios", "--remote-components", "ejs:github", "--impersonate", "chrome"])
     ninja_cmd.append(url)
     
     process = await asyncio.create_subprocess_exec(*ninja_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
@@ -119,7 +122,7 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
         print_log("✅ Ninja Mode Success!")
         return True
         
-    print_log(f"⚠️ Ninja Mode failed (Exit code {process.returncode}). Initiating Tank Mode fallback...")
+    print_log(f"⚠️ Ninja Mode failed. Initiating Tank Mode fallback...")
 
     print_log("🛡️ Trying Tank Mode (VLESS Proxy + Cookies + TV/VR Client)...")
     _setup_cookies()
@@ -131,7 +134,7 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
         tank_cmd.extend(["--cookies", str(COOKIE_FILE_PATH.resolve())])
         
     if is_youtube:
-        # 🚨 فیکس حیاتی: حذف کلاینت web برای دور زدن قطعی ارور 403 Forbidden
+        # استفاده از کلاینت‌های غیر وب (تی‌وی و واقعیت مجازی) برای دور زدن قفل یوتیوب
         tank_cmd.extend(["--extractor-args", "youtube:player_client=tv,android_vr", "--remote-components", "ejs:github", "--impersonate", "chrome", "--force-ipv4"])
     tank_cmd.append(url)
     
@@ -143,22 +146,17 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
         return True
         
     error_msg = stderr.decode('utf-8', errors='ignore').strip()
-    raise Exception(f"yt-dlp failed: {error_msg}")
+    raise Exception(f"yt-dlp failed completely. Last error: {error_msg}")
 
 async def download_via_cobalt(url, job_dir, quality="max"):
-    """استفاده از سرورهای بک‌آپ و سالم کبالت"""
+    """🚨 آپدیت به Cobalt v7 API: سریع‌تر، قدرتمندتر و بی‌نقص برای کیفیت 1080p 🚨"""
     print_log(f"🌟 Starting Cobalt API fallback for: {url} | Quality: {quality}")
     
-    # 🚨 آپدیت لیست API های کبالت به نمونه‌های سالم و فعال
-    api_urls = [
-        "https://api.cobalt.tools/api/json", 
-        "https://co.wuk.sh/api/json", 
-        "https://cobalt.q0.pm/api/json"
-    ]
+    api_urls = ["https://api.cobalt.tools/api/json", "https://cobalt.q0.pm/api/json", "https://co.wuk.sh/api/json"]
     headers = {
         "Accept": "application/json", 
         "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
     }
     
     q_val = "1080" if quality == "max" else quality
@@ -177,6 +175,7 @@ async def download_via_cobalt(url, job_dir, quality="max"):
                 async with session.post(api, headers=headers, json=payload, timeout=15) as resp:
                     if resp.status in [200, 202]:
                         data = await resp.json()
+                        # پشتیبانی از فرمت‌های کبالت ورژن جدید
                         if data.get("status") in ["redirect", "stream", "success", "picker"]:
                             video_url = data.get("url")
                             if video_url: break
@@ -229,28 +228,33 @@ async def main():
                         try:
                             download_success = False
                             try:
+                                # تلاش اول: yt-dlp با تله کیفیت
                                 await download_video_via_ytdlp(url, job_dir, quality)
                                 download_success = True
                             except Exception as e:
                                 print_log(f"⚠️ yt-dlp failed: {e}")
                             
+                            # تلاش دوم: اگر yt-dlp بخاطر قفل یوتیوب شکست خورد، کبالت با قدرت وارد می‌شود
                             if not download_success:
-                                print_log("🔄 Falling back to Cobalt API...")
+                                print_log("🔄 Falling back to Cobalt API for high quality extraction...")
                                 try:
                                     await download_via_cobalt(url, job_dir, quality)
                                     download_success = True
                                 except Exception as cobalt_err:
                                     print_log(f"❌ Cobalt API also failed: {cobalt_err}")
-                                    raise Exception("All download methods failed.")
+                                    raise Exception("All download methods (yt-dlp & Cobalt) failed.")
 
+                            # پیدا کردن فایل مدیا
                             matches = list(job_dir.glob("video.mp4")) or list(job_dir.glob("video.mp3")) or [m for m in job_dir.glob("video.*") if m.suffix.lower() not in ['.jpg', '.json']]
                             if not matches or not download_success: raise FileNotFoundError("Video/Audio file not found on disk!")
                             file_path = str(matches[0].resolve())
 
+                            # پیدا کردن عکس کاور
                             thumb_path = None
                             thumb_matches = list(job_dir.glob("*.jpg"))
                             if thumb_matches: thumb_path = str(thumb_matches[0].resolve())
 
+                            # استخراج متادیتا از JSON
                             width, height, duration, title = 0, 0, 0, "Video"
                             info_matches = list(job_dir.glob("*.info.json"))
                             if info_matches:
