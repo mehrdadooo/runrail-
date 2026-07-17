@@ -36,7 +36,7 @@ else:
         "BAJglPkAnFvYFhSl3hlS4GIGt1SE-9C07UeeF0iteez4skX9hDjV3v_MpG7XN50rodIXGUghdjN_s_ePRYiY2_0d7cOROP1EvEhbcNp1c7FaJzYzRNbC4ejWuqdVF88yRh7Y1_1frOzsrEKlFF8UWq2bl6jeOPcTyl0OZGkosKhuXXIVbnM9h_-X96MLqvRCPlvW9IrBjby-HXHlE_RFAw-68JViTuVNZz6zEFsDWV0M-D5-L8nRfedqEFP0Y1pg_7JZQnCggHKYUJ7lvhCa9-XCo1PJQZjbj9ukDM53B7WoZgpfKGjtnuRfp0kHEuZYrZGtXUHs_N7wmLdrZfeolKQ6RNa1nAAAAAINTZ2uAQ"
     ]
 
-# 🚨 فیکس حیاتی ۱: استفاده از توکن معتبر
+# 🚨 استفاده از توکن معتبر
 BOT_TOKEN = "8813125038:AAFwiPBCMSJvFmKlFSHNqApJ-d0kzW0lUv4"
 
 app = Client("vip_worker", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN, in_memory=True)
@@ -54,7 +54,7 @@ def _setup_cookies():
     return False
 
 async def start_xray_proxy():
-    """دانلود خودکار و راه‌اندازی سرور VLESS در پس‌زمینه کانتینر ران‌ریل"""
+    """دانلود خودکار و راه‌اندازی سرور VLESS در پس‌زمینه کانتینر"""
     vless_link = os.getenv("VLESS_LINK")
     if not vless_link:
         print_log("⚠️ VLESS_LINK is not set. Xray will not start.")
@@ -110,7 +110,7 @@ async def start_xray_proxy():
         print_log(f"❌ Failed to start Xray: {e}")
 
 async def download_video_via_ytdlp(url, job_dir, quality="max"):
-    """دانلود پرسرعت با شبیه‌سازها و سیستم Fallback دو مرحله‌ای (نینجا و تانک) - آپدیت بای‌پس 1080p"""
+    """دانلود پرسرعت با شبیه‌سازها و بای‌پس 1080p (آپدیت 2026)"""
     is_youtube = "youtube.com" in url.lower() or "youtu.be" in url.lower()
     absolute_job_dir = str(job_dir.resolve()) 
     
@@ -139,11 +139,10 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
     else:
         base_cmd.extend(["--merge-output-format", "mp4", "--postprocessor-args", "ffmpeg:-movflags +faststart"])
 
-    # 🚀 فاز اول: تلاش با نینجا مود (مستقیم، بدون پروکسی، کلاینت‌های ضد-تحریم وب و اندروید وی‌آر)
+    # 🚀 فاز اول: تلاش با نینجا مود
     print_log("🥷 Trying Ninja Mode (Direct Connection + Modern Clients)...")
     ninja_cmd = list(base_cmd)
     if is_youtube:
-        # آپدیت ۲۰۲۶ برای جلوگیری از تنزل کیفیت به ۳۶۰p
         ninja_cmd.extend([
             "--extractor-args", "youtube:player_client=web,android_vr,tv_downgraded;player_skip=webpage", 
             "--remote-components", "ejs:github", 
@@ -161,7 +160,7 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
         
     print_log(f"⚠️ Ninja Mode failed (Exit code {process.returncode}). Initiating Tank Mode fallback...")
 
-    # 🚀 فاز دوم: تانک مود (پروکسی VLESS + کوکی‌ها + کلاینت Web Creator)
+    # 🚀 فاز دوم: تانک مود (پروکسی + کوکی + کلاینت Web Creator)
     print_log("🛡️ Trying Tank Mode (VLESS Proxy + Cookies + Web Creator Client)...")
     _setup_cookies() 
     
@@ -172,7 +171,6 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
         tank_cmd.extend(["--cookies", str(COOKIE_FILE_PATH.resolve())])
         
     if is_youtube:
-        # آپدیت ۲۰۲۶ کلاینت‌های کوکی‌دار
         tank_cmd.extend([
             "--extractor-args", "youtube:player_client=web_creator,tv_downgraded,android_vr;player_skip=webpage", 
             "--remote-components", "ejs:github", 
@@ -230,7 +228,7 @@ async def download_via_cobalt(url, job_dir, quality="max"):
         return True
 
 async def main():
-    # ۱. راه‌اندازی خودکار پروکسی Xray در پس‌زمینه کانتینر
+    # ۱. راه‌اندازی پروکسی Xray برای دانلود
     await start_xray_proxy()
 
     print_log("🔍 DIAGNOSTIC SYSTEM STARTING:")
@@ -297,20 +295,29 @@ async def main():
                                         width, height, duration = info.get('width', 0), info.get('height', 0), info.get('duration', 0)
                                 except Exception: pass
 
+                            # --- 🚀 SPEED BOOST SECTION ---
+                            # قطع کردن هرگونه پروکسی سطح سیستم برای Pyrogram تا آپلود با بالاترین سرعت دیتاسنتر انجام شود
+                            os.environ.pop("http_proxy", None)
+                            os.environ.pop("https_proxy", None)
+                            os.environ.pop("ALL_PROXY", None)
+                            os.environ.pop("HTTP_PROXY", None)
+                            os.environ.pop("HTTPS_PROXY", None)
+
                             last_percent = -1
                             async def progress_callback(current, total):
                                 nonlocal last_percent
                                 if total > 0:
                                     percent = int((current * 100) / total)
-                                    if percent % 10 == 0 and percent != last_percent:
+                                    # برای شلوغ نشدن لاگ‌ها، هر 20% یک پیام می‌اندازیم
+                                    if percent % 20 == 0 and percent != last_percent:
                                         last_percent = percent
-                                        print_log(f"[{job_id}] 🚀 Uploading Progress: {percent}%")
+                                        print_log(f"[{job_id}] 🚀 Uploading to Telegram: {percent}%")
 
-                            # ساخت پکیج آپلود با تمام متادیتاها
+                            # پکیج آپلود نهایی
                             is_audio = quality == "audio"
                             upload_kwargs = {
                                 "chat_id": chat_id, 
-                                "caption": f"🎬 **دانلود موفق**\n⚡ توسط سرور پرسرعت", 
+                                "caption": f"🎬 **دانلود موفق**\n⚡ دریافت سریع از دیتاسنتر", 
                                 "reply_to_message_id": message_id, 
                                 "progress": progress_callback
                             }
@@ -333,7 +340,7 @@ async def main():
                                 upload_app = Client(f"railway_{job_id}_{attempt}", api_id=API_ID, api_hash=API_HASH, session_string=chosen_session, in_memory=True)
                                 try:
                                     async with upload_app:
-                                        print_log(f"[{job_id}] 🚀 Attempt {attempt+1}: Uploading to Telegram...")
+                                        print_log(f"[{job_id}] 🚀 Attempt {attempt+1}: Uploading to Telegram (Direct Mode)...")
                                         
                                         if is_audio:
                                             await upload_app.send_audio(**upload_kwargs)
