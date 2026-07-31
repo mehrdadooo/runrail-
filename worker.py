@@ -15,10 +15,8 @@ def print_log(msg):
     print(msg, flush=True)
     sys.stdout.flush()
 
-# ─── تنظیمات اختصاصی ───
 API_ID = 39884025
 API_HASH = "24ce21160fcabd7e7c0de00a77b45ef3"
-BOT_TOKEN = "8813125038:AAHTqUJKP-i8zp1gktfC7i54N7ngC7BHOdU"
 HF_URL = "https://downloads89oouu-downloader.hf.space" 
 WORKER_SECRET = "ali_vip_worker_2026"
 
@@ -30,12 +28,16 @@ else:
     BOT_SESSIONS = [
         "BAJglPkAO0RCs_NW3uELJV95CRa17odKleHTrosLpwhRpmfX3N1K7SqQobP1kJvc6czR6E1z5j9TChl_X5_hHlAtx5RZH-xdFiOfJ_CrTMrTRKY2wzpe9dC2E9CitkBqwgZQDyHbiLZC-mrJPoXgDZ2tGeNwMMbWd3kHal3me4N8HloJcvwbR93nopWSZaO1VE9OGol8iczRSPovbqMcexgkquu7yb8EO2U6aeHZOqiExD8Vdibnj8W4QUQLA60bdhNhZGSC4EmdKXKCq32DfZHFtNNxC3RMmh3h1xJdS6Jf4W9IJaR32E5mS8pM-COP9N9pCoLWlw-2XjQiSu5KM9AQjGcs5wAAAAINTZ2uAQ",
         "BAJglPkAEIHq7qQmQFqUMINW5U6OolhKB8sxXd5mn0pLpwl6mB5fRnvM8UFmd2wf-7N0oDZ0-Rms2QlSr9JMkRoXAAGxKTp0tj0kK_mUobjFlOtS8hctWZgSwNjcsEDXprLU4f7CMQLvRskRzpPkShd1TxsEuzjtjg2sq9_Ed1hBQan1-BFBdAJ2wVNGSfg6zOAUBgV1XUU1_SAl7LywJJQUmSeQEB8dBX_-tmUqJVzpJI6iorwqPxYu8n5k2bPnXdtRB-vbZf-Oi2Cv-1wl-cvG_0vTVPcVUnTiIJjigDpXRz_Eu0lmVIiRhSNtxJvtSj_4u1z-Ze9qnQOCfTNQ3dRQQHYO1wAAAAINTZ2uAQ",
-        "BAJglPkAq5Ab9cqjvp2qvWWxpgmw7wOq2W6wlOC6EUCD9QOu5mAtsAyr7CaY9eOTUCpjB1yuYvE9UyQy6EpZdh-AupsQ6wwQPGjxe6b6wkv7gVm8z0vdO5f54I_dh8erfAY1Lz-186zlCumDcV63EZwm2MO27qKdzbjOocILR4SKECgrvxk1bEqfLHlp5D8nFyTBZeAko4iPWhh8O6d9WMdLQDodXMG-dJCNwQzqE6Vyui1BRNxFIXKoz1XGnZ6iPPuf3eKJH-ayZ3FHJJUei0kYO4MKl_gy3Uv1WFzvTEuvTZtbjyKFKMSp4YH39_OdTdUwXbHca-lQhGwukSztM10quL9_xAAAAAINTZ2uAQ",
-        "BAJglPkAag83pxlJ7YpaNRtvcskvrUSiHrWl0HfkNboMFQuljSaFf6rieC84VjbF5aq9Pxrqrplls6jlfm7f4HC9D7JWa7bKqH9WjSplofQTsSbRYmkvQbUk2lmC7obeze9Unblo0VFc9kXXYG5No0hojvU4DCWTH3ZsY8uveLe8hVTSvlHCQiPcU0cJfnTZT9E2yK__EnlPojvEyavyi1h0pFzGWAybMlegSoHnLcX9VGU08qiRgkKOYdF3i5CV3heSijJiFlwI35wu-XYnqKm60zK2lMTJr2lfid6ssTcdy90brCa9C1BzAcnSGPQMy-GaoZo0ESsHEgGR4R7Z9smYtDFSTgAAAAINTZ2uAQ",
-        "BAJglPkAnFvYFhSl3hlS4GIGt1SE-9C07UeeF0iteez4skX9hDjV3v_MpG7XN50rodIXGUghdjN_s_ePRYiY2_0d7cOROP1EvEhbcNp1c7FaJzYzRNbC4ejWuqdVF88yRh7Y1_1frOzsrEKlFF8UWq2bl6jeOPcTyl0OZGkosKhuXXIVbnM9h_-X96MLqvRCPlvW9IrBjby-HXHlE_RFAw-68JViTuVNZz6zEFsDWV0M-D5-L8nRfedqEFP0Y1pg_7JZQnCggHKYUJ7lvhCa9-XCo1PJQZjbj9ukDM53B7WoZgpfKGjtnuRfp0kHEuZYrZGtXUHs_N7wmLdrZfeolKQ6RNa1nAAAAAINTZ2uAQ"
+        "BAJglPkAq5Ab9cqjvp2qvWWxpgmw7wOq2W6wlOC6EUCD9QOu5mAtsAyr7CaY9eOTUCpjB1yuYvE9UyQy6EpZdh-AupsQ6wwQPGjxe6b6wkv7gVm8z0vdO5f54I_dh8erfAY1Lz-186zlCumDcV63EZwm2MO27qKdzbjOocILR4SKECgrvxk1bEqfLHlp5D8nFyTBZeAko4iPWhh8O6d9WMdLQDodXMG-dJCNwQzqE6Vyui1BRNxFIXKoz1XGnZ6iPPuf3eKJH-ayZ3FHJJUei0kYO4MKl_gy3Uv1WFzvTEuvTZtbjyKFKMSp4YH39_OdTdUwXbHca-lQhGwukSztM10quL9_xAAAAAINTZ2uAQ"
     ]
 
+# 🚨 توکن جدید شما جایگزین شد
+BOT_TOKEN = "8813125038:AAHTqUJKP-i8zp1gktfC7i54N7ngC7BHOdU"
+
 app = Client("vip_worker", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN, in_memory=True)
+
+CACHE_DIR = Path("/app/yt_cache")
+OAUTH_FILE = CACHE_DIR / "youtube" / "youtube-oauth2-tokens.json"
 COOKIE_FILE_PATH = Path(__file__).parent / "cookies.txt"
 
 def _setup_cookies():
@@ -44,6 +46,16 @@ def _setup_cookies():
         with open(COOKIE_FILE_PATH, "w", encoding="utf-8") as f:
             f.write(cookie_data)
         print_log("🍪 YT_COOKIES detected! cookies.txt written successfully.")
+        return True
+    return False
+
+def _setup_oauth2():
+    oauth_data = os.getenv("OAUTH_TOKEN")
+    if oauth_data:
+        OAUTH_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(OAUTH_FILE, "w", encoding="utf-8") as f:
+            f.write(oauth_data)
+        print_log("✅ OAUTH2 Token injected successfully!")
         return True
     return False
 
@@ -79,13 +91,13 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
     is_youtube = "youtube.com" in url.lower() or "youtu.be" in url.lower()
     absolute_job_dir = str(job_dir.resolve()) 
     
-    # 🚨 تله کیفیت: حذف /b تا اگر کیفیت 1080p یا 720p در دسترس نبود، ربات به جای دانلود یواشکیِ 360p، ارور بدهد تا کبالت بیدار شود!
+    # 🚨 فیکس کیفیت: برگرداندن به حالت <= تا اگر ویدیویی 1080 نبود، ارور ندهد و بهترین کیفیت موجودش را بگیرد
     if is_youtube:
-        if quality == "1080": format_str = "bv*[height<=1080]+ba" 
-        elif quality == "720": format_str = "bv*[height<=720]+ba"
-        elif quality == "480": format_str = "bv*[height<=480]+ba"
+        if quality == "1080": format_str = "bv*[height<=1080]+ba/b" 
+        elif quality == "720": format_str = "bv*[height<=720]+ba/b"
+        elif quality == "480": format_str = "bv*[height<=480]+ba/b"
         elif quality == "audio": format_str = "ba/b"
-        else: format_str = "bv*[height<=1080]+ba"
+        else: format_str = "bv*+ba/b"
     else:
         format_str = "b"
         if quality == "1080": format_str = "best[height<=1080]/best"
@@ -100,32 +112,35 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
         "-o", f"{absolute_job_dir}/video.%(ext)s"
     ]
     
-    if quality == "audio":
-        cmd.extend(["--extract-audio", "--audio-format", "mp3"])
-    else:
-        cmd.extend(["--merge-output-format", "mp4", "--postprocessor-args", "ffmpeg:-movflags +faststart"])
+    if quality == "audio": cmd.extend(["--extract-audio", "--audio-format", "mp3"])
+    else: cmd.extend(["--merge-output-format", "mp4", "--postprocessor-args", "ffmpeg:-movflags +faststart"])
 
-    print_log("🛡️ Trying Ultimate Mode (VLESS Proxy + Cookies + TV/MWEB Client)...")
+    print_log("🛡️ Trying Ultimate Mode (VLESS Proxy + OAuth2/Cookies + Safe Clients)...")
     
+    has_oauth = _setup_oauth2()
     has_cookies = _setup_cookies()
+    
+    tank_cmd = list(cmd)
     if os.getenv("VLESS_LINK"):
-        cmd.extend(["--proxy", "socks5h://127.0.0.1:10808"])
-    if has_cookies:
-        cmd.extend(["--cookies", str(COOKIE_FILE_PATH.resolve())])
+        tank_cmd.extend(["--proxy", "socks5h://127.0.0.1:10808"])
         
     if is_youtube:
-        # کلاینت‌های تی‌وی و ام‌وب برای دور زدن محدودیت‌های ربات‌یاب و گرفتن کیفیت بالا
-        cmd.extend([
-            "--extractor-args", "youtube:player_client=tv,mweb", 
-            "--remote-components", "ejs:github", 
-            "--impersonate", "chrome", 
-            "--force-ipv4"
-        ])
-        
-    cmd.append(url)
-    print_log(f"🎬 Running Command: {' '.join(cmd)}")
+        if has_oauth:
+            tank_cmd.extend(["--username", "oauth2", "--password", '""', "--cache-dir", str(CACHE_DIR)])
+        if has_cookies:
+            tank_cmd.extend(["--cookies", str(COOKIE_FILE_PATH.resolve())])
+            
+        # 🚨 فیکس کلاینت: حذف mweb و استفاده از کلاینت‌های مطمئن‌تر
+        tank_cmd.extend(["--extractor-args", "youtube:player_client=tv,web_creator,ios,android", "--remote-components", "ejs:github", "--impersonate", "chrome", "--force-ipv4"])
+    else:
+        if has_cookies:
+            tank_cmd.extend(["--cookies", str(COOKIE_FILE_PATH.resolve())])
+
+    tank_cmd.append(url)
     
-    process = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+    print_log(f"🎬 Running Command: {' '.join(tank_cmd)}")
+    
+    process = await asyncio.create_subprocess_exec(*tank_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     stdout, stderr = await process.communicate()
     
     if process.returncode == 0:
@@ -138,18 +153,12 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
 async def download_via_cobalt(url, job_dir, quality="max"):
     print_log(f"🌟 Starting Cobalt API fallback for: {url} | Quality: {quality}")
     api_urls = ["https://api.cobalt.tools/api/json", "https://co.wuk.sh/api/json", "https://cobalt.q0.pm/api/json"]
-    headers = {
-        "Accept": "application/json", "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-    }
+    headers = {"Accept": "application/json", "Content-Type": "application/json", "User-Agent": "Mozilla/5.0"}
     
     q_val = "1080" if quality == "max" else quality
     payload = {"url": url, "vQuality": q_val if q_val in ["1080", "720", "480", "360", "240", "144"] else "1080"}
-    if quality == "audio": 
-        payload["isAudioOnly"] = True
-        payload.pop("vQuality", None)
-    else:
-        payload["isAudioMuted"] = False
+    if quality == "audio": payload["isAudioOnly"] = True
+    else: payload["isAudioMuted"] = False
 
     async with aiohttp.ClientSession() as session:
         video_url = None
@@ -180,7 +189,6 @@ async def download_via_cobalt(url, job_dir, quality="max"):
 
 async def main():
     await start_xray_proxy()
-    _setup_cookies()
 
     print_log("\n" + "="*50)
     print_log("🚀 Starting Persistent Telegram Client...")
@@ -215,7 +223,7 @@ async def main():
                                 print_log(f"⚠️ yt-dlp failed: {e}")
                             
                             if not download_success:
-                                print_log("🔄 Falling back to Cobalt API for high quality extraction...")
+                                print_log("🔄 Falling back to Cobalt API for heavy extraction...")
                                 try:
                                     await download_via_cobalt(url, job_dir, quality)
                                     download_success = True
@@ -238,7 +246,7 @@ async def main():
                                     with open(info_matches[0], 'r', encoding='utf-8') as f:
                                         info = json.load(f)
                                         width, height, duration, title = info.get('width', 0), info.get('height', 0), info.get('duration', 0), info.get('title', 'Video')
-                                except: pass
+                                except Exception: pass
 
                             last_percent = -1
                             async def progress_callback(current, total):
