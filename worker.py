@@ -20,7 +20,6 @@ API_HASH = "24ce21160fcabd7e7c0de00a77b45ef3"
 HF_URL = "https://downloads89oouu-downloader.hf.space" 
 WORKER_SECRET = "ali_vip_worker_2026"
 
-# خواندن سشن‌های چندگانه از متغیر محیطی یا استفاده از هاردکد قبلی جهت جلوگیری از تداخل
 bot_sessions_env = os.getenv("BOT_SESSIONS")
 if bot_sessions_env:
     try:
@@ -36,7 +35,6 @@ else:
         "BAJglPkAnFvYFhSl3hlS4GIGt1SE-9C07UeeF0iteez4skX9hDjV3v_MpG7XN50rodIXGUghdjN_s_ePRYiY2_0d7cOROP1EvEhbcNp1c7FaJzYzRNbC4ejWuqdVF88yRh7Y1_1frOzsrEKlFF8UWq2bl6jeOPcTyl0OZGkosKhuXXIVbnM9h_-X96MLqvRCPlvW9IrBjby-HXHlE_RFAw-68JViTuVNZz6zEFsDWV0M-D5-L8nRfedqEFP0Y1pg_7JZQnCggHKYUJ7lvhCa9-XCo1PJQZjbj9ukDM53B7WoZgpfKGjtnuRfp0kHEuZYrZGtXUHs_N7wmLdrZfeolKQ6RNa1nAAAAAINTZ2uAQ"
     ]
 
-# 🚨 استفاده از توکن معتبر
 BOT_TOKEN = "8813125038:AAFwiPBCMSJvFmKlFSHNqApJ-d0kzW0lUv4"
 
 app = Client("vip_worker", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN, in_memory=True)
@@ -44,7 +42,6 @@ app = Client("vip_worker", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN
 COOKIE_FILE_PATH = Path(__file__).parent / "cookies.txt"
 
 def _setup_cookies():
-    """بررسی وجود کوکی در متغیرهای محیطی و ساخت فایل cookies.txt"""
     cookie_data = os.getenv("YT_COOKIES")
     if cookie_data and len(cookie_data.strip()) > 0:
         with open(COOKIE_FILE_PATH, "w", encoding="utf-8") as f:
@@ -54,7 +51,6 @@ def _setup_cookies():
     return False
 
 async def start_xray_proxy():
-    """دانلود خودکار و راه‌اندازی سرور VLESS در پس‌زمینه کانتینر"""
     vless_link = os.getenv("VLESS_LINK")
     if not vless_link:
         print_log("⚠️ VLESS_LINK is not set. Xray will not start.")
@@ -110,18 +106,23 @@ async def start_xray_proxy():
         print_log(f"❌ Failed to start Xray: {e}")
 
 async def download_video_via_ytdlp(url, job_dir, quality="max"):
-    """دانلود پرسرعت با شبیه‌سازها و بای‌پس 1080p (آپدیت 2026)"""
     is_youtube = "youtube.com" in url.lower() or "youtu.be" in url.lower()
     absolute_job_dir = str(job_dir.resolve()) 
     
-    # تنظیمات فرمت و رزولوشن
-    format_str = "bv*+ba/b" if is_youtube else "b"
-    if quality == "1080": format_str = "bv*[height<=1080]+ba/b"
-    elif quality == "720": format_str = "bv*[height<=720]+ba/b"
-    elif quality == "480": format_str = "bv*[height<=480]+ba/b"
-    elif quality == "audio": format_str = "ba/b"
+    if is_youtube:
+        format_str = "bv*+ba/b"
+        if quality == "1080": format_str = "bv*[height<=1080]+ba/b"
+        elif quality == "720": format_str = "bv*[height<=720]+ba/b"
+        elif quality == "480": format_str = "bv*[height<=480]+ba/b"
+        elif quality == "audio": format_str = "ba/b"
+    else:
+        format_str = "b"
+        if quality == "1080": format_str = "best[height<=1080]/best"
+        elif quality == "720": format_str = "best[height<=720]/best"
+        elif quality == "480": format_str = "best[height<=480]/best"
+        elif quality == "audio": format_str = "ba/b"
     
-    # بیس آپشن‌های دانلود
+    # ⚡⚡⚡ توربو شارژ: اضافه شدن دانلود موازی (10 کانکشن) و بای‌پَس افت سرعت ⚡⚡⚡
     base_cmd = [
         "yt-dlp", "--rm-cache-dir", 
         "-f", format_str, 
@@ -129,8 +130,10 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
         "--write-thumbnail",
         "--convert-thumbnails", "jpg",
         "--no-check-certificate", 
-        "--retries", "5",
+        "--retries", "10",
         "--fragment-retries", "infinite",
+        "--concurrent-fragments", "10",     # 🚀 دانلود 10 تکه همزمان
+        "--http-chunk-size", "10M",         # 🚀 جلوگیری از لیمیت سرعت یوتیوب
         "-o", f"{absolute_job_dir}/video.%(ext)s",
     ]
     
@@ -139,16 +142,10 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
     else:
         base_cmd.extend(["--merge-output-format", "mp4", "--postprocessor-args", "ffmpeg:-movflags +faststart"])
 
-    # 🚀 فاز اول: تلاش با نینجا مود
-    print_log("🥷 Trying Ninja Mode (Direct Connection + Modern Clients)...")
+    print_log("🥷 Trying Ninja Mode (Direct Connection + Android Client)...")
     ninja_cmd = list(base_cmd)
     if is_youtube:
-        ninja_cmd.extend([
-            "--extractor-args", "youtube:player_client=web,android_vr,tv_downgraded;player_skip=webpage", 
-            "--remote-components", "ejs:github", 
-            "--impersonate", "chrome",
-            "--force-ipv4"
-        ])
+        ninja_cmd.extend(["--extractor-args", "youtube:player_client=android", "--remote-components", "ejs:github", "--impersonate", "chrome"])
     ninja_cmd.append(url)
     
     process = await asyncio.create_subprocess_exec(*ninja_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
@@ -160,8 +157,7 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
         
     print_log(f"⚠️ Ninja Mode failed (Exit code {process.returncode}). Initiating Tank Mode fallback...")
 
-    # 🚀 فاز دوم: تانک مود (پروکسی + کوکی + کلاینت Web Creator)
-    print_log("🛡️ Trying Tank Mode (VLESS Proxy + Cookies + Web Creator Client)...")
+    print_log("🛡️ Trying Tank Mode (VLESS Proxy + Cookies + Web Client)...")
     _setup_cookies() 
     
     tank_cmd = list(base_cmd)
@@ -171,12 +167,7 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
         tank_cmd.extend(["--cookies", str(COOKIE_FILE_PATH.resolve())])
         
     if is_youtube:
-        tank_cmd.extend([
-            "--extractor-args", "youtube:player_client=web_creator,tv_downgraded,android_vr;player_skip=webpage", 
-            "--remote-components", "ejs:github", 
-            "--impersonate", "chrome", 
-            "--force-ipv4"
-        ])
+        tank_cmd.extend(["--extractor-args", "youtube:player_client=web,mweb", "--remote-components", "ejs:github", "--impersonate", "chrome", "--force-ipv4"])
     tank_cmd.append(url)
     
     process = await asyncio.create_subprocess_exec(*tank_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
@@ -190,7 +181,6 @@ async def download_video_via_ytdlp(url, job_dir, quality="max"):
     raise Exception(f"Both Ninja and Tank modes failed. Last error: {error_msg}")
 
 async def download_via_cobalt(url, job_dir, quality="max"):
-    """دانلود با کبالت به همراه اعمال کیفیت درخواستی کاربر"""
     print_log(f"🌟 Starting Cobalt API fallback for: {url} | Quality: {quality}")
     api_urls = ["https://api.cobalt.tools/api/json", "https://cobalt.q0.pm/api/json", "https://api.cobalt.tools/"]
     headers = {
@@ -217,18 +207,19 @@ async def download_via_cobalt(url, job_dir, quality="max"):
 
         ext = "mp3" if quality == "audio" else "mp4"
         file_path = f"{job_dir.resolve()}/video.{ext}"
+        print_log(f"📥 Downloading raw media from Cobalt to: {file_path}")
         async with session.get(video_url) as video_resp:
             if video_resp.status != 200: raise Exception("Download failed.")
             with open(file_path, 'wb') as f:
                 while True:
-                    chunk = await video_resp.content.read(2 * 1024 * 1024)
+                    # 🚀 افزایش بافر کبالت از 2MB به 8MB برای سرعت بیشتر نوشتن روی هارد
+                    chunk = await video_resp.content.read(8 * 1024 * 1024)
                     if not chunk: break
                     f.write(chunk)
         print_log("✅ Successfully downloaded via Cobalt!")
         return True
 
 async def main():
-    # ۱. راه‌اندازی پروکسی Xray برای دانلود
     await start_xray_proxy()
 
     print_log("🔍 DIAGNOSTIC SYSTEM STARTING:")
@@ -275,17 +266,14 @@ async def main():
                                 await download_via_cobalt(url, job_dir, quality)
                                 download_success = True
 
-                            # پیدا کردن فایل مدیا
                             matches = list(job_dir.glob("video.mp4")) or list(job_dir.glob("video.mp3")) or [m for m in job_dir.glob("video.*") if m.suffix.lower() not in ['.jpg', '.json']]
                             if not matches or not download_success: raise FileNotFoundError("Video/Audio file not found on disk!")
                             file_path = str(matches[0].resolve())
 
-                            # پیدا کردن عکس کاور
                             thumb_path = None
                             thumb_matches = list(job_dir.glob("*.jpg"))
                             if thumb_matches: thumb_path = str(thumb_matches[0].resolve())
 
-                            # استخراج متادیتا از JSON
                             width, height, duration = 0, 0, 0
                             info_matches = list(job_dir.glob("*.info.json"))
                             if info_matches:
@@ -295,29 +283,24 @@ async def main():
                                         width, height, duration = info.get('width', 0), info.get('height', 0), info.get('duration', 0)
                                 except Exception: pass
 
-                            # --- 🚀 SPEED BOOST SECTION ---
-                            # قطع کردن هرگونه پروکسی سطح سیستم برای Pyrogram تا آپلود با بالاترین سرعت دیتاسنتر انجام شود
+                            # قطع کردن پروکسی برای آپلود فوق‌سریع در تلگرام
                             os.environ.pop("http_proxy", None)
                             os.environ.pop("https_proxy", None)
                             os.environ.pop("ALL_PROXY", None)
-                            os.environ.pop("HTTP_PROXY", None)
-                            os.environ.pop("HTTPS_PROXY", None)
 
                             last_percent = -1
                             async def progress_callback(current, total):
                                 nonlocal last_percent
                                 if total > 0:
                                     percent = int((current * 100) / total)
-                                    # برای شلوغ نشدن لاگ‌ها، هر 20% یک پیام می‌اندازیم
                                     if percent % 20 == 0 and percent != last_percent:
                                         last_percent = percent
-                                        print_log(f"[{job_id}] 🚀 Uploading to Telegram: {percent}%")
+                                        print_log(f"[{job_id}] 🚀 Uploading Progress: {percent}%")
 
-                            # پکیج آپلود نهایی
                             is_audio = quality == "audio"
                             upload_kwargs = {
                                 "chat_id": chat_id, 
-                                "caption": f"🎬 **دانلود موفق**\n⚡ دریافت سریع از دیتاسنتر", 
+                                "caption": f"🎬 **دانلود موفق**\n⚡ دریافت با سرعت توربو", 
                                 "reply_to_message_id": message_id, 
                                 "progress": progress_callback
                             }
@@ -340,13 +323,9 @@ async def main():
                                 upload_app = Client(f"railway_{job_id}_{attempt}", api_id=API_ID, api_hash=API_HASH, session_string=chosen_session, in_memory=True)
                                 try:
                                     async with upload_app:
-                                        print_log(f"[{job_id}] 🚀 Attempt {attempt+1}: Uploading to Telegram (Direct Mode)...")
-                                        
-                                        if is_audio:
-                                            await upload_app.send_audio(**upload_kwargs)
-                                        else:
-                                            await upload_app.send_video(**upload_kwargs)
-                                            
+                                        print_log(f"[{job_id}] 🚀 Attempt {attempt+1}: Uploading to Telegram...")
+                                        if is_audio: await upload_app.send_audio(**upload_kwargs)
+                                        else: await upload_app.send_video(**upload_kwargs)
                                         try: await upload_app.delete_messages(chat_id, status_msg_id)
                                         except: pass
                                     print_log(f"[{job_id}] 🎉 Job Completed!")
