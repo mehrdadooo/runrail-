@@ -1,17 +1,15 @@
 FROM python:3.11
 
-# ۱. نصب ابزارهای پایه و گواهینامه‌های SSL
+# نصب ابزارهای اصلی، دانلودر چندکاناله aria2، و جاوااسکریپت Node.js
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ffmpeg ca-certificates unzip wget curl && \
+    apt-get install -y --no-install-recommends ffmpeg aria2 ca-certificates unzip wget curl nodejs npm && \
     rm -rf /var/lib/apt/lists/*
 
-# 🚨 فیکسِ جهانی: نصب موتور Deno و انتقال آن به مسیر سراسریِ سیستم‌عامل (برای حل قطعی معمای یوتیوب)
 RUN curl -fsSL https://deno.land/x/install/install.sh | sh && \
     mv /root/.deno/bin/deno /usr/local/bin/deno && \
     chmod +x /usr/local/bin/deno
 
-RUN apt-get update && apt-get install -y aria2 ffmpeg && rm -rf /var/lib/apt/lists/*
-# ۳. نصب موتور Xray در پوشه اختصاصی
+# نصب هسته Xray
 RUN mkdir -p /app/xray_bin && \
     wget https://github.com/XTLS/Xray-core/releases/download/v1.8.9/Xray-linux-64.zip && \
     unzip Xray-linux-64.zip -d /app/xray_bin && \
