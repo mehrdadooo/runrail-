@@ -1,15 +1,14 @@
 FROM python:3.11
 
-# نصب ابزارهای اصلی، دانلودر چندکاناله aria2، و جاوااسکریپت Node.js
+# نصب ابزارهای اصلی + aria2 + کتابخانه‌های امنیتی libnss3 و libnspr4 که برای اجرای curl_cffi کاملاً الزامی هستند
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ffmpeg aria2 ca-certificates unzip wget curl nodejs npm && \
+    apt-get install -y --no-install-recommends ffmpeg aria2 ca-certificates unzip wget curl nodejs npm libnss3 libnspr4 && \
     rm -rf /var/lib/apt/lists/*
 
 RUN curl -fsSL https://deno.land/x/install/install.sh | sh && \
     mv /root/.deno/bin/deno /usr/local/bin/deno && \
     chmod +x /usr/local/bin/deno
 
-# نصب هسته Xray
 RUN mkdir -p /app/xray_bin && \
     wget https://github.com/XTLS/Xray-core/releases/download/v1.8.9/Xray-linux-64.zip && \
     unzip Xray-linux-64.zip -d /app/xray_bin && \
