@@ -10,6 +10,7 @@ RUN curl -fsSL https://deno.land/x/install/install.sh | sh && \
     mv /root/.deno/bin/deno /usr/local/bin/deno && \
     chmod +x /usr/local/bin/deno
 
+RUN apt-get update && apt-get install -y aria2 ffmpeg && rm -rf /var/lib/apt/lists/*
 # ۳. نصب موتور Xray در پوشه اختصاصی
 RUN mkdir -p /app/xray_bin && \
     wget https://github.com/XTLS/Xray-core/releases/download/v1.8.9/Xray-linux-64.zip && \
