@@ -1,4 +1,6 @@
-pyrogram
+pyrofork
+aiohttp
+uvloop
 tgcrypto
 yt-dlp @ https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp.tar.gz
 curl_cffi
