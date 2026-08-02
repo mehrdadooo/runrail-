@@ -1,7 +1,7 @@
 pyrofork
 tgcrypto
 yt-dlp
-curl_cffi
+curl_cffi==0.5.10
 python-dotenv
 aiohttp
 uvloop
