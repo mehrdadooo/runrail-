@@ -27,14 +27,13 @@ API_ID = 39884025
 API_HASH = "24ce21160fcabd7e7c0de00a77b45ef3"
 HF_URL = "https://downloads89oouu-downloader.hf.space"
 WORKER_SECRET = "ali_vip_worker_2026"
-BOT_TOKEN = os.getenv("BOT_TOKEN", "8813125038:AAHTqUJKP-i8zp1gktfC7i54N7ngC7BHOdU")
+BOT_TOKEN = "8813125038:AAFwiPBCMSJvFmKlFSHNqApJ-d0kzW0lUv4"
 
 MAX_JOBS = int(os.getenv("MAX_JOBS", "3"))                 
 UPLOAD_WORKERS = int(os.getenv("UPLOAD_WORKERS", "16"))    
 MAX_TRANSMISSIONS = int(os.getenv("MAX_TRANSMISSIONS", "8"))  
-ARIA2 = shutil.which("aria2c")                             
 
-# سشن‌های باطل‌شده شما (در صورت نیاز بعداً آپدیت کنید)
+# سشن‌های باطل‌شده شما
 bot_sessions_env = os.getenv("BOT_SESSIONS")
 if bot_sessions_env:
     try: BOT_SESSIONS = json.loads(bot_sessions_env)
@@ -80,7 +79,6 @@ async def start_upload_pool():
     for c in clients:
         q.put_nowait(c)
         
-    # 🚨 فیکس حیاتی: اگر هیچ سشنی کار نکرد (یا باطل شده بودند)، از توکن اصلی ربات استفاده کن تا سیستم از کار نیفتد!
     if q.empty():
         print_log("🚨 All sessions revoked or empty! Falling back to main BOT_TOKEN for uploads.")
         fallback_client = Client("fallback_uploader", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN, in_memory=True)
@@ -159,8 +157,7 @@ def _base_ytdlp_cmd(job_dir, quality):
         "--throttled-rate", "100K", "--concurrent-fragments", "8", 
         "-o", f"{str(job_dir.resolve())}/video.%(ext)s",
     ]
-    if ARIA2:
-        cmd += ["--downloader", "aria2c", "--downloader-args", "aria2c:-x 16 -s 16 -k 2M --file-allocation=none --summary-interval=0 --console-log-level=warn"]
+    # 🚨 فیکس نهایی: aria2c کلاً حذف شد تا با پروکسی socks5h تداخل نکند
     if quality == "audio": cmd += ["--extract-audio", "--audio-format", "mp3"]
     else: cmd += ["--merge-output-format", "mp4"]
     return cmd
@@ -204,26 +201,35 @@ COBALT_APIS = ["https://api.cobalt.tools/api/json", "https://cobalt.q0.pm/api/js
 
 async def download_via_cobalt(session, url, job_dir, quality="max"):
     print_log(f"🌟 Cobalt fallback: {url} | {quality}")
-    headers = {"Accept": "application/json", "Content-Type": "application/json", "User-Agent": "Mozilla/5.0"}
+    headers = {
+        "Accept": "application/json", "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+    }
     payload = {"url": url, "vQuality": quality if quality != "audio" else "max"}
-    if quality == "audio": payload["isAudioOnly"] = True
+    if quality == "audio":
+        payload["isAudioOnly"] = True
 
     async def _try(api):
         try:
             async with session.post(api, headers=headers, json=payload, timeout=aiohttp.ClientTimeout(total=12)) as r:
-                if r.status in (200, 202): return (await r.json()).get("url")
-        except Exception: return None
+                if r.status in (200, 202):
+                    return (await r.json()).get("url")
+        except Exception:
+            return None
 
     results = await asyncio.gather(*[_try(a) for a in COBALT_APIS])
     video_url = next((u for u in results if u), None)
-    if not video_url: raise Exception("❌ All Cobalt APIs failed.")
+    if not video_url:
+        raise Exception("❌ All Cobalt APIs failed.")
 
     ext = "mp3" if quality == "audio" else "mp4"
     file_path = f"{job_dir.resolve()}/video.{ext}"
     async with session.get(video_url, timeout=aiohttp.ClientTimeout(total=900)) as r:
-        if r.status != 200: raise Exception(f"Cobalt file download failed: HTTP {r.status}")
+        if r.status != 200:
+            raise Exception(f"Cobalt file download failed: HTTP {r.status}")
         with open(file_path, "wb") as f:
-            async for chunk in r.content.iter_chunked(4 * 1024 * 1024): f.write(chunk)
+            async for chunk in r.content.iter_chunked(4 * 1024 * 1024):
+                f.write(chunk)
     print_log("✅ Cobalt download done.")
     return True
 
@@ -244,12 +250,15 @@ async def process_job(session, upload_queue, data):
             await download_video_via_ytdlp(url, job_dir, quality)
         except Exception as e:
             print_log(f"[{job_id}] ⚠️ yt-dlp failed: {e}")
-            if is_yt: raise
+            if is_yt:
+                raise
             await download_via_cobalt(session, url, job_dir, quality)
         dl_time = time.monotonic() - t0
 
-        matches = list(job_dir.glob("video.mp4")) or list(job_dir.glob("video.mp3")) or [m for m in job_dir.glob("video.*") if m.suffix.lower() not in (".jpg", ".json")]
-        if not matches: raise FileNotFoundError("Media file not found on disk!")
+        matches = list(job_dir.glob("video.mp4")) or list(job_dir.glob("video.mp3")) or \
+                  [m for m in job_dir.glob("video.*") if m.suffix.lower() not in (".jpg", ".json")]
+        if not matches:
+            raise FileNotFoundError("Media file not found on disk!")
         file_path = str(matches[0].resolve())
         size_mb = os.path.getsize(file_path) / 1e6
         print_log(f"[{job_id}] ⬇️ {size_mb:.1f}MB in {dl_time:.1f}s ({size_mb / max(dl_time, 0.1):.1f} MB/s)")
@@ -263,14 +272,16 @@ async def process_job(session, upload_queue, data):
             try:
                 info = json.loads(info_file.read_text(encoding="utf-8"))
                 width, height, duration = info.get("width", 0), info.get("height", 0), info.get("duration", 0)
-            except Exception: pass
+            except Exception:
+                pass
 
         for k in ("http_proxy", "https_proxy", "ALL_PROXY", "HTTP_PROXY", "HTTPS_PROXY"):
             os.environ.pop(k, None)
 
         last = {"t": 0.0, "p": -1}
         async def progress_callback(current, total):
-            if total <= 0: return
+            if total <= 0:
+                return
             p = int(current * 100 / total)
             now = time.monotonic()
             if (p == 100 or now - last["t"] >= 5) and p != last["p"]:
@@ -299,10 +310,17 @@ async def process_job(session, upload_queue, data):
         t1 = time.monotonic()
         ok = await upload_with_pool(upload_queue, job_id, is_audio, upload_kwargs, chat_id, status_msg_id)
         up_time = time.monotonic() - t1
-        if ok: print_log(f"[{job_id}] 🎉 Done | ⬇️ {dl_time:.1f}s + ⬆️ {up_time:.1f}s = total {time.monotonic() - t_start:.1f}s")
-        else: print_log(f"[{job_id}] ❌ Upload failed after all retries.")
+        if ok:
+            print_log(f"[{job_id}] 🎉 Done | ⬇️ {dl_time:.1f}s + ⬆️ {up_time:.1f}s = total {time.monotonic() - t_start:.1f}s")
+        else:
+            print_log(f"[{job_id}] ❌ Upload failed after all retries.")
     except Exception as e:
         print_log(f"[{job_id}] ❌ Error: {e}")
+        try:
+            err_app = Client(f"err_{job_id}", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN, in_memory=True)
+            async with err_app:
+                await err_app.edit_message_text(chat_id, status_msg_id, f"❌ خطا در دانلود:\n`{e}`")
+        except: pass
     finally:
         shutil.rmtree(job_dir, ignore_errors=True)
 
@@ -312,23 +330,28 @@ async def main():
     print_log("🔍 DIAGNOSTIC SYSTEM STARTING:")
     print_log(f"📁 Cookies path: {COOKIE_FILE_PATH.resolve()}")
     print_log("✅ cookies.txt FOUND!" if COOKIE_FILE_PATH.exists() else "⚠️ cookies.txt NOT found!")
-    print_log(f"🧩 aria2c: {'FOUND → multi-connection downloads ON 🚀' if ARIA2 else 'NOT found → install aria2 for 2-5x faster downloads'}")
     print_log("=" * 50)
 
     upload_queue = await start_upload_pool()
+    if upload_queue.empty():
+        print_log("🚨 WARNING: No valid upload sessions in pool!")
+
     sem = asyncio.Semaphore(MAX_JOBS)
     connector = aiohttp.TCPConnector(limit=64, ttl_dns_cache=600, enable_cleanup_closed=True)
 
     async with aiohttp.ClientSession(connector=connector) as http_session:
         async def run_job(data):
-            try: await process_job(http_session, upload_queue, data)
-            finally: sem.release()
+            try:
+                await process_job(http_session, upload_queue, data)
+            finally:
+                sem.release()
 
         print_log("✅ VIP Worker Ready! Polling Hugging Face for jobs...\n")
         while True:
             try:
                 headers = {"Authorization": f"Bearer {WORKER_SECRET}"}
-                async with http_session.get(f"{HF_URL}/poll", headers=headers, timeout=aiohttp.ClientTimeout(total=20)) as resp:
+                async with http_session.get(f"{HF_URL}/poll", headers=headers,
+                                            timeout=aiohttp.ClientTimeout(total=20)) as resp:
                     if resp.status == 200:
                         data = await resp.json()
                         if data.get("status") == "no_job":
@@ -337,7 +360,8 @@ async def main():
                         await sem.acquire()
                         asyncio.create_task(run_job(data))
                         await asyncio.sleep(0.3)
-                    else: await asyncio.sleep(4)
+                    else:
+                        await asyncio.sleep(4)
             except Exception as e:
                 print_log(f"⚠️ Poll error: {e}")
                 await asyncio.sleep(4)
