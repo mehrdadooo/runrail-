@@ -27,7 +27,7 @@ API_ID = 39884025
 API_HASH = "24ce21160fcabd7e7c0de00a77b45ef3"
 HF_URL = "https://downloads89oouu-downloader.hf.space"
 WORKER_SECRET = "ali_vip_worker_2026"
-BOT_TOKEN = "8813125038:AAFwiPBCMSJvFmKlFSHNqApJ-d0kzW0lUv4"
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8813125038:AAHTqUJKP-i8zp1gktfC7i54N7ngC7BHOdU")
 
 MAX_JOBS = int(os.getenv("MAX_JOBS", "3"))                 
 UPLOAD_WORKERS = int(os.getenv("UPLOAD_WORKERS", "16"))    
